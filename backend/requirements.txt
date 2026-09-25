@@ -1,0 +1,6 @@
+fastapi[standard]
+sqlalchemy
+psycopg2-binary
+pydantic-settings
+pwdlib[argon2]
+python-jose[cryptography]
