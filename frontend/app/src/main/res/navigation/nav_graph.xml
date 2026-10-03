@@ -1,0 +1,21 @@
+<navigation xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/nav_graph" app:startDestination="@id/loginFragment">
+ <fragment android:id="@+id/loginFragment" android:name="com.example.englishlearningapp.ui.AuthFragment" android:label="login" />
+ <fragment android:id="@+id/registerFragment" android:name="com.example.englishlearningapp.ui.AuthFragment" android:label="register" />
+ <fragment android:id="@+id/onboardingFragment" android:name="com.example.englishlearningapp.ui.OnboardingFragment" android:label="onboarding" />
+ <fragment android:id="@+id/homeFragment" android:name="com.example.englishlearningapp.ui.HomeFragment" android:label="home" />
+ <fragment android:id="@+id/cameraFragment" android:name="com.example.englishlearningapp.ui.CameraFragment" android:label="camera" />
+ <fragment android:id="@+id/recognitionFragment" android:name="com.example.englishlearningapp.ui.RecognitionFragment" android:label="recognition" />
+ <fragment android:id="@+id/wordsFragment" android:name="com.example.englishlearningapp.ui.WordsFragment" android:label="words" />
+ <fragment android:id="@+id/topicsFragment" android:name="com.example.englishlearningapp.ui.TopicsFragment" android:label="topics" />
+ <fragment android:id="@+id/wordDetailFragment" android:name="com.example.englishlearningapp.ui.WordDetailFragment" android:label="wordDetail" />
+ <fragment android:id="@+id/historyFragment" android:name="com.example.englishlearningapp.ui.HistoryFragment" android:label="history" />
+ <fragment android:id="@+id/practiceFragment" android:name="com.example.englishlearningapp.ui.PracticeFragment" android:label="practice" />
+ <fragment android:id="@+id/flashcardFragment" android:name="com.example.englishlearningapp.ui.FlashcardFragment" android:label="flashcard" />
+ <fragment android:id="@+id/quizFragment" android:name="com.example.englishlearningapp.ui.QuizFragment" android:label="quiz" />
+ <fragment android:id="@+id/quizResultFragment" android:name="com.example.englishlearningapp.ui.QuizResultFragment" android:label="quizResult" />
+ <fragment android:id="@+id/progressFragment" android:name="com.example.englishlearningapp.ui.ProgressFragment" android:label="progress" />
+ <fragment android:id="@+id/profileFragment" android:name="com.example.englishlearningapp.ui.ProfileFragment" android:label="profile" />
+ <fragment android:id="@+id/settingsFragment" android:name="com.example.englishlearningapp.ui.SettingsFragment" android:label="settings" />
+ <fragment android:id="@+id/adminFragment" android:name="com.example.englishlearningapp.ui.AdminFragment" android:label="admin" />
+ <fragment android:id="@+id/adminListFragment" android:name="com.example.englishlearningapp.ui.AdminListFragment" android:label="adminList" />
+</navigation>

@@ -1,0 +1,7 @@
+<resources>
+ <color name="background">#19192E</color><color name="surface">#202338</color><color name="surface_high">#292D4C</color>
+ <color name="outline">#353B60</color><color name="blue">#419DDE</color><color name="purple">#A16DF5</color>
+ <color name="green">#31CC89</color><color name="orange">#FFB85B</color>
+ <color name="text_primary">#F6F7FC</color><color name="text_secondary">#A7AFC9</color>
+ <color name="white">#FFFFFF</color><color name="black">#000000</color>
+</resources>

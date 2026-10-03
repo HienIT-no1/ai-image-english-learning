@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">EnglishLearningApp</string>
+    <string name="nav_home">Trang chủ</string>
+    <string name="nav_camera">Nhận diện</string>
+    <string name="nav_words">Từ vựng</string>
+    <string name="nav_practice">Luyện tập</string>
+    <string name="nav_profile">Hồ sơ</string>
+</resources>

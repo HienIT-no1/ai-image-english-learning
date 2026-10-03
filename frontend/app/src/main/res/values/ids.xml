@@ -1,0 +1,9 @@
+<resources>
+    <item name="input_auth_name" type="id" />
+    <item name="input_auth_email" type="id" />
+    <item name="input_auth_password" type="id" />
+    <item name="input_settings_name" type="id" />
+    <item name="input_word_search" type="id" />
+    <item name="input_quiz_answer" type="id" />
+    <item name="quiz_prompt" type="id" />
+</resources>

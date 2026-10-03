@@ -1,0 +1,11 @@
+<resources>
+ <style name="Base.Theme.EnglishLearningApp" parent="Theme.Material3.Dark.NoActionBar">
+ <item name="colorPrimary">@color/blue</item><item name="colorOnPrimary">@color/white</item>
+ <item name="colorSecondary">@color/purple</item><item name="colorSurface">@color/surface</item>
+ <item name="colorOnSurface">@color/text_primary</item><item name="android:windowBackground">@color/background</item>
+ <item name="android:fontFamily">sans</item><item name="android:windowLightStatusBar">false</item>
+ <item name="android:colorAccent">@color/blue</item>
+ </style>
+ <style name="Theme.EnglishLearningApp" parent="Base.Theme.EnglishLearningApp" />
+ <style name="NavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator"><item name="android:color">@color/surface_high</item></style>
+</resources>
