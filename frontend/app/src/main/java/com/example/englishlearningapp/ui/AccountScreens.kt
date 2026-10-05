@@ -7,7 +7,9 @@ import androidx.navigation.fragment.findNavController
 import com.example.englishlearningapp.R
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
-
+import androidx.lifecycle.lifecycleScope
+import com.google.android.material.button.MaterialButton
+import kotlinx.coroutines.launch
 class AuthFragment : ScreenFragment() {
     override fun render() {
         val registering = findNavController().currentDestination?.id == R.id.registerFragment
@@ -15,24 +17,43 @@ class AuthFragment : ScreenFragment() {
         text("◉", 68, Palette.blue, true, center = true)
         text("LENSLEARN", 13, Palette.blue, true, center = true).letterSpacing = 0.24f
         header("SEE IT. LEARN IT.", if (registering) "Bắt đầu hành trình" else "Thế giới quanh bạn,\ntừ vựng của bạn.",
-            if (registering) "Tạo hồ sơ để khám phá tiếng Anh mỗi ngày." else "Học tiếng Anh từ những điều nhỏ bé mỗi ngày.")
-        val name = if (registering) field("Tên của bạn",viewId=R.id.input_auth_name) else null
-        val email = field("Email",viewId=R.id.input_auth_email).apply { inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS }
-        val password = field("Mật khẩu", password = true,viewId=R.id.input_auth_password)
-        notice("Bản trải nghiệm giao diện • Không xác thực tài khoản thật. Email và mật khẩu không được lưu hoặc gửi đi.")
-        button(if (registering) "Tạo hồ sơ mẫu  →" else "Đăng nhập trải nghiệm  →") {
+            if (registering) "Tạo tài khoản để khám phá tiếng Anh mỗi ngày." else "Học tiếng Anh từ những điều nhỏ bé mỗi ngày.")
+
+        val username = field("Tên đăng nhập", viewId = R.id.input_auth_name)
+        val email = if (registering) field("Email", viewId = R.id.input_auth_email).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+        } else null
+        val password = field("Mật khẩu", password = true, viewId = R.id.input_auth_password)
+        notice("Tên đăng nhập 3 đến 50 ký tự • Mật khẩu tối thiểu 8 ký tự.")
+
+        var submit: MaterialButton? = null
+        submit = button(if (registering) "Tạo tài khoản  →" else "Đăng nhập  →") {
+            val u = username.text.toString().trim()
+            val p = password.text.toString()
             when {
-                name != null && name.text.toString().trim().isEmpty() -> name.error = "Nhập tên của bạn"
-                !android.util.Patterns.EMAIL_ADDRESS.matcher(email.text.toString().trim()).matches() -> email.error = "Nhập email hợp lệ"
-                password.text.toString().length < 6 -> password.error = "Nhập ít nhất 6 ký tự để thử giao diện"
+                u.length !in 3..50 -> username.error = "Tên đăng nhập từ 3 đến 50 ký tự"
+                email != null && !android.util.Patterns.EMAIL_ADDRESS.matcher(email.text.toString().trim()).matches() ->
+                    email.error = "Nhập email hợp lệ"
+                p.length !in 8..128 -> password.error = "Mật khẩu từ 8 đến 128 ký tự"
                 else -> {
-                    store.name = name?.text?.toString()?.trim() ?: email.text.toString().trim().substringBefore('@')
-                    enter(if (registering) R.id.onboardingFragment else R.id.homeFragment)
+                    hideKeyboard()
+                    submit?.isEnabled = false
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        val result = if (email != null) {
+                            auth.register(u, email.text.toString().trim(), p)
+                        } else {
+                            auth.login(u, p)
+                        }
+                        submit?.isEnabled = true
+                        result.onSuccess { user ->
+                            store.name = user.fullName ?: user.username ?: u
+                            enter(if (registering) R.id.onboardingFragment else R.id.homeFragment)
+                        }.onFailure { toast(it.message ?: "Có lỗi xảy ra") }
+                    }
                 }
             }
         }
-        button("Khám phá bằng hồ sơ mẫu", outlined = true) { store.name = "Bạn học"; enter(R.id.onboardingFragment) }
-        text(if (registering) "Đã có hồ sơ? Đăng nhập" else "Chưa có hồ sơ? Đăng ký", 14, Palette.blue, parent = content, center = true).apply {
+        text(if (registering) "Đã có tài khoản? Đăng nhập" else "Chưa có tài khoản? Đăng ký", 14, Palette.blue, parent = content, center = true).apply {
             minHeight = dp(48)
             setOnClickListener { if (registering) findNavController().popBackStack() else go(R.id.registerFragment) }
         }
@@ -40,9 +61,10 @@ class AuthFragment : ScreenFragment() {
         text("✦  Mỗi hình ảnh, một khám phá", 16, bold = true, parent = info)
         text("Chụp ảnh • Lưu từ • Ôn luyện", 13, Palette.muted, parent = info)
     }
+
     private fun enter(destination: Int) {
         store.signedIn = destination == R.id.homeFragment
-        findNavController().navigate(destination,null,NavOptions.Builder().setPopUpTo(R.id.nav_graph,true).build())
+        findNavController().navigate(destination, null, NavOptions.Builder().setPopUpTo(R.id.nav_graph, true).build())
     }
 }
 
@@ -92,7 +114,7 @@ class ProfileFragment : ScreenFragment() {
             MaterialAlertDialogBuilder(requireContext()).setTitle("Đăng xuất hồ sơ mẫu?")
                 .setMessage("Từ đã lưu và tiến độ trên máy vẫn được giữ lại.")
                 .setNegativeButton("Ở lại",null).setPositiveButton("Đăng xuất") { _, _ ->
-                    store.signedIn = false
+                    auth.logout()
                     findNavController().navigate(R.id.loginFragment,null,NavOptions.Builder().setPopUpTo(R.id.nav_graph,true).build())
                 }.show()
         }

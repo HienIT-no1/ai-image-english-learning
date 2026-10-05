@@ -47,6 +47,7 @@ open class ScreenFragment : Fragment(R.layout.fragment_screen) {
     private var screenContent: LinearLayout? = null
     protected val content get() = requireNotNull(screenContent)
     protected val store get() = (requireActivity() as MainActivity).store
+    protected val auth get() = (requireActivity() as MainActivity).auth
     protected val words get() = (requireActivity() as MainActivity).words
     protected val quizzes get() = (requireActivity() as MainActivity).quizzes
     protected fun go(id: Int, vararg args: Pair<String, Any?>) {

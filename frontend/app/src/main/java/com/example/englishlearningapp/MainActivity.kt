@@ -13,6 +13,8 @@ import com.example.englishlearningapp.data.local.LearningStore
 import com.example.englishlearningapp.data.repository.WordRepository
 import com.example.englishlearningapp.data.repository.QuizRepository
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.example.englishlearningapp.data.remote.RetrofitClient
+import com.example.englishlearningapp.data.repository.AuthRepository
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -22,6 +24,7 @@ class MainActivity : AppCompatActivity() {
     private var speechReady = false
     val words = WordRepository()
     val quizzes = QuizRepository(words)
+    val auth by lazy { AuthRepository(RetrofitClient.create(store), store) }
     override fun onCreate(savedInstanceState: Bundle?) {
         store = LearningStore(this)
         super.onCreate(savedInstanceState)
@@ -33,7 +36,7 @@ class MainActivity : AppCompatActivity() {
             insets
         }
         val nav = (supportFragmentManager.findFragmentById(R.id.nav_host) as NavHostFragment).navController
-        if (savedInstanceState == null && store.signedIn) {
+        if (savedInstanceState == null && store.signedIn && !store.token.isNullOrBlank()) {
             nav.navigate(R.id.homeFragment, null, NavOptions.Builder().setPopUpTo(R.id.loginFragment,true).build())
         }
         val bottom = findViewById<BottomNavigationView>(R.id.bottom_nav)

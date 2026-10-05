@@ -14,6 +14,11 @@ class LearningStore(context: Context) {
     var signedIn: Boolean
         get() = prefs.getBoolean("signed_in", false)
         set(value) { prefs.edit().putBoolean("signed_in", value).apply() }
+    var token: String?
+        get() = prefs.getString("token", null)
+        set(value) {
+            prefs.edit().apply { if (value == null) remove("token") else putString("token", value) }.apply()
+        }
     var name: String
         get() = prefs.getString("name", "Bạn học") ?: "Bạn học"
         set(value) { prefs.edit().putString("name", value).apply() }
