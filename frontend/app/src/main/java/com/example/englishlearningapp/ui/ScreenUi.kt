@@ -63,6 +63,14 @@ open class ScreenFragment : Fragment(R.layout.fragment_screen) {
         destinationId = findNavController().currentDestination?.id
         render()
     }
+
+    override fun onResume() {
+        super.onResume()
+
+        if (screenContent != null) {
+            refresh()
+        }
+    }
     protected open fun render() {}
     override fun onDestroyView() {
         screenContent = null
