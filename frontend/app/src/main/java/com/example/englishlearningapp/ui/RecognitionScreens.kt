@@ -93,7 +93,7 @@ class RecognitionFragment : ScreenFragment() {
         section("3 từ để khám phá")
         listOf("apple","book","coffee").mapNotNull { words.find(it) }.forEach { wordRow(it) }
         button("Lưu cả 3 từ") {
-            store.saved=store.saved+setOf("apple","book","coffee"); toast("Đã lưu 3 từ mẫu"); refresh()
+            toast("Nhận diện mẫu chưa nối với kho từ trên máy chủ. Hãy lưu từ trong mục Từ vựng.")
         }
         button("Ôn luyện từ đã lưu",Palette.purple,outlined=true) { go(R.id.flashcardFragment) }
     }

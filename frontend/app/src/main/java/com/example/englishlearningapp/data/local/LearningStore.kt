@@ -3,21 +3,51 @@ package com.example.englishlearningapp.data.local
 import android.content.Context
 import com.example.englishlearningapp.data.mock.MockData
 import org.json.JSONArray
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
-/** Persistent local demo data, replaced by repositories when a backend is available. */
-class LearningStore(context: Context) {
-    private val prefs = context.getSharedPreferences("learning_demo", Context.MODE_PRIVATE)
+/** Session, per-account API cache and retry requests. PostgreSQL owns learning results. */
+class LearningStore(private val context: Context) {
+    private val sessionPrefs = context.getSharedPreferences("learning_demo", Context.MODE_PRIVATE)
+    val userId: Long? get() = sessionPrefs.getLong("active_user_id", 0).takeIf { it > 0 }
+    private val prefs get() = context.getSharedPreferences("learning_user_${userId ?: "guest"}", Context.MODE_PRIVATE)
+
+    fun activateUser(user: com.example.englishlearningapp.data.model.UserDto, adoptLegacy: Boolean = false) {
+        val id = requireNotNull(user.userId)
+        require(id > 0)
+        val migrate = adoptLegacy && userId == null && !sessionPrefs.contains("legacy_owner_id") && sessionPrefs.getBoolean("signed_in", false)
+        sessionPrefs.edit().putLong("active_user_id", id).apply()
+        if (migrate) {
+            // Preserve old local learning data for the validated owner; saved words now come from the server.
+            val editor = prefs.edit()
+            val keys = setOf("name","level","goal","reminders","mastered","history","reviews","today_count","last_day","days","quiz_runs","quiz_correct","quiz_total","quiz_sessions")
+            for ((key, value) in sessionPrefs.all) if (key in keys) when (value) {
+                is String -> editor.putString(key,value)
+                is Int -> editor.putInt(key,value)
+                is Boolean -> editor.putBoolean(key,value)
+                is Set<*> -> editor.putStringSet(key,value.filterIsInstance<String>().toSet())
+            }
+            editor.apply()
+            sessionPrefs.edit().putLong("legacy_owner_id",id).apply()
+        }
+        name = user.fullName ?: user.username ?: "Bạn học"
+        level = levelLabel(user.cefrLevel ?: when(user.englishLevel) {
+            "INTERMEDIATE" -> "B1"; "ADVANCED" -> "B2"; else -> "A1"
+        })
+        goal = user.dailyGoal ?: 10
+        reminders = user.remindersEnabled
+        onboardingCompleted = user.onboardingCompleted
+        signedIn = true
+    }
+
+    fun clearSession() {
+        sessionPrefs.edit().remove("token").remove("active_user_id").putBoolean("signed_in",false).apply()
+    }
     var signedIn: Boolean
-        get() = prefs.getBoolean("signed_in", false)
-        set(value) { prefs.edit().putBoolean("signed_in", value).apply() }
+        get() = sessionPrefs.getBoolean("signed_in", false)
+        set(value) { sessionPrefs.edit().putBoolean("signed_in", value).apply() }
     var token: String?
-        get() = prefs.getString("token", null)
+        get() = sessionPrefs.getString("token", null)
         set(value) {
-            prefs.edit().apply { if (value == null) remove("token") else putString("token", value) }.apply()
+            sessionPrefs.edit().apply { if (value == null) remove("token") else putString("token", value) }.apply()
         }
     var name: String
         get() = prefs.getString("name", "Bạn học") ?: "Bạn học"
@@ -32,7 +62,7 @@ class LearningStore(context: Context) {
         get() = prefs.getBoolean("reminders", false)
         set(value) { prefs.edit().putBoolean("reminders", value).apply() }
     var saved: Set<String>
-        get() = prefs.getStringSet("saved", setOf("apple", "book", "coffee", "cat"))?.toSet() ?: emptySet()
+        get() = prefs.getStringSet("saved", emptySet())?.toSet() ?: emptySet()
         set(value) { prefs.edit().putStringSet("saved", value.toSet()).apply() }
     var mastered: Set<String>
         get() = prefs.getStringSet("mastered", emptySet())?.toSet() ?: emptySet()
@@ -40,34 +70,36 @@ class LearningStore(context: Context) {
     var history: List<String>
         get() = readList("history", emptyList())
         set(value) { prefs.edit().putString("history", JSONArray(value).toString()).apply() }
-    fun toggleSave(id: String) { saved = if (id in saved) saved - id else saved + id }
-    fun practice(id: String, remembered: Boolean) {
-        val rememberedIds = if (remembered) mastered + id else mastered - id
-        val today = dateFormat().format(Date())
-        val days = studyDays.toMutableSet().apply { add(today) }
-        prefs.edit().putStringSet("mastered", rememberedIds).putStringSet("days", days).putInt("reviews", reviews + 1)
-            .putInt("today_count", todayCount + 1).putString("last_day", today).apply()
+    var pendingReview: String?
+        get() = prefs.getString("pending_review",null)
+        set(value) { prefs.edit().putString("pending_review",value).apply() }
+    var activeQuiz: String?
+        get() = prefs.getString("active_quiz",null)
+        set(value) { prefs.edit().putString("active_quiz",value).apply() }
+    var pendingQuizAnswer: String?
+        get() = prefs.getString("pending_quiz_answer",null)
+        set(value) { prefs.edit().putString("pending_quiz_answer",value).apply() }
+    var onboardingCompleted: Boolean
+        get() = prefs.getBoolean("onboarding_completed",false)
+        set(value) { prefs.edit().putBoolean("onboarding_completed",value).apply() }
+    fun levelLabel(code: String) = when(code) {
+        "A2" -> "A2 • Cơ bản"; "B1" -> "B1 • Trung cấp"; "B2" -> "B2 • Khá"; else -> "A1 • Mới bắt đầu"
     }
-    val reviews get() = prefs.getInt("reviews", 0)
-    val todayCount: Int get() = if (prefs.getString("last_day", "") == dateFormat().format(Date())) prefs.getInt("today_count", 0) else 0
-    val studyDays get() = prefs.getStringSet("days", emptySet())?.toSet() ?: emptySet()
-    val streak: Int get() {
-        val calendar = Calendar.getInstance()
-        if (dateFormat().format(calendar.time) !in studyDays) calendar.add(Calendar.DAY_OF_YEAR, -1)
-        var count = 0
-        while (dateFormat().format(calendar.time) in studyDays) { count++; calendar.add(Calendar.DAY_OF_YEAR, -1) }
-        return count
+    fun applyLearning(data: com.example.englishlearningapp.data.model.LearningSummaryDto) {
+        prefs.edit().putStringSet("mastered",data.progress.filter { it.status=="MASTERED" }.map { it.vocabularyId.toString() }.toSet())
+            .putInt("reviews",data.reviewCount).putInt("today_count",data.todayCount)
+            .putInt("server_streak",data.currentStreak).putInt("quiz_runs",data.quizRuns)
+            .putInt("quiz_correct",data.quizCorrect).putInt("quiz_total",data.quizTotal)
+            .putStringSet("days",data.days.filter { it.count>0 }.map { it.date }.toSet()).apply()
+        goal=data.dailyGoal
     }
-    fun dateFormat() = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-    var quizRuns: Int
-        get() = prefs.getInt("quiz_runs", 0)
-        set(value) { prefs.edit().putInt("quiz_runs", value).apply() }
-    var quizCorrect: Int
-        get() = prefs.getInt("quiz_correct", 0)
-        set(value) { prefs.edit().putInt("quiz_correct", value).apply() }
-    var quizTotal: Int
-        get() = prefs.getInt("quiz_total", 0)
-        set(value) { prefs.edit().putInt("quiz_total", value).apply() }
+    val reviews get() = prefs.getInt("reviews",0)
+    val todayCount get() = prefs.getInt("today_count",0)
+    val streak get() = prefs.getInt("server_streak",0)
+    val studyDays get() = prefs.getStringSet("days",emptySet())?.toSet() ?: emptySet()
+    val quizRuns get() = prefs.getInt("quiz_runs",0)
+    val quizCorrect get() = prefs.getInt("quiz_correct",0)
+    val quizTotal get() = prefs.getInt("quiz_total",0)
     fun adminItems(kind: String): List<String> {
         val defaults = when (kind) {
             "users" -> listOf("Minh Anh • A1", "Hoàng Nam • A2", "Thu Hà • B1")
@@ -79,17 +111,6 @@ class LearningStore(context: Context) {
         return readList("admin_$kind", defaults)
     }
     fun saveAdminItems(kind: String, items: List<String>) { prefs.edit().putString("admin_$kind", JSONArray(items).toString()).apply() }
-    fun saveProfile(name: String, level: String, goal: Int, reminders: Boolean) {
-        require(name.isNotBlank())
-        prefs.edit().putString("name",name.trim()).putString("level",level)
-            .putInt("goal",goal.coerceAtLeast(1)).putBoolean("reminders",reminders).apply()
-    }
-    fun recordQuiz(sessionId: String, correct: Int, total: Int) {
-        val sessions = prefs.getStringSet("quiz_sessions",emptySet())?.toSet() ?: emptySet()
-        if (sessionId in sessions || total <= 0) return
-        prefs.edit().putInt("quiz_runs",quizRuns + 1).putInt("quiz_correct",quizCorrect + correct.coerceIn(0,total))
-            .putInt("quiz_total",quizTotal + total).putStringSet("quiz_sessions",sessions + sessionId).apply()
-    }
     private fun readList(key: String, defaults: List<String>): List<String> = runCatching {
         val array = JSONArray(prefs.getString(key,JSONArray(defaults).toString()))
         (0 until array.length()).mapNotNull { array.opt(it) as? String }

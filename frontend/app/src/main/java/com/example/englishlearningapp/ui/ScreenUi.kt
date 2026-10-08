@@ -14,6 +14,12 @@ import android.widget.Toast
 import android.view.inputmethod.InputMethodManager
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.combine
 import androidx.navigation.fragment.findNavController
 import com.example.englishlearningapp.MainActivity
 import com.example.englishlearningapp.R
@@ -49,6 +55,8 @@ open class ScreenFragment : Fragment(R.layout.fragment_screen) {
     protected val store get() = (requireActivity() as MainActivity).store
     protected val auth get() = (requireActivity() as MainActivity).auth
     protected val words get() = (requireActivity() as MainActivity).words
+    protected val collections get() = (requireActivity() as MainActivity).collections
+    protected val learning get() = (requireActivity() as MainActivity).learning
     protected val quizzes get() = (requireActivity() as MainActivity).quizzes
     protected fun go(id: Int, vararg args: Pair<String, Any?>) {
         if (!isAdded || findNavController().currentDestination?.id != destinationId) return
@@ -62,6 +70,23 @@ open class ScreenFragment : Fragment(R.layout.fragment_screen) {
         screenContent = view.findViewById(R.id.screen_content)
         destinationId = findNavController().currentDestination?.id
         render()
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                combine(collections.changes,learning.changes) { a,b -> a to b }.drop(1).collect {
+                    if (store.signedIn && this@ScreenFragment !is AuthFragment && this@ScreenFragment !is SessionFragment && this@ScreenFragment !is OnboardingFragment) refresh()
+                }
+            }
+        }
+    }
+    protected fun toggleSaved(word: Word) {
+        hideKeyboard()
+        val wasSaved=word.id in store.saved
+        viewLifecycleOwner.lifecycleScope.launch {
+            collections.toggle(word.id).onSuccess {
+                toast(if (wasSaved) "Đã bỏ lưu ${word.english}" else "Đã lưu ${word.english}")
+                learning.load()
+            }.onFailure { toast(it.message ?: "Không lưu được từ. Hãy thử lại.") }
+        }
     }
 
     override fun onResume() {
@@ -181,15 +206,17 @@ open class ScreenFragment : Fragment(R.layout.fragment_screen) {
         if (showSaveLabel) {
             button(if (saved) "✓  Đã lưu • Bỏ lưu" else "＋  Lưu vào bộ sưu tập",
                 parent = card, outlined = true) {
-                hideKeyboard(); store.toggleSave(word.id)
-                toast(if (saved) "Đã bỏ lưu ${word.english}" else "Đã lưu ${word.english}")
-                refresh()
-            }.contentDescription = if (saved) "Đã lưu ${word.english}. Bấm để bỏ lưu" else "Lưu ${word.english} vào bộ sưu tập"
+                toggleSaved(word)
+            }.apply {
+                isEnabled = !collections.isSaving(word.id)
+                contentDescription = if (saved) "Đã lưu ${word.english}. Bấm để bỏ lưu" else "Lưu ${word.english} vào bộ sưu tập"
+            }
         } else {
-            text(if (saved) "★" else "＋", 22, Palette.blue, parent = r).apply {
+            text(if (collections.isSaving(word.id)) "…" else if (saved) "★" else "＋", 22, Palette.blue, parent = r).apply {
                 gravity = Gravity.CENTER; layoutParams = LinearLayout.LayoutParams(dp(48),dp(48))
                 contentDescription = if (saved) "Bỏ lưu ${word.english}" else "Lưu ${word.english}"
-                setOnClickListener { hideKeyboard(); store.toggleSave(word.id); refresh() }
+                isEnabled = !collections.isSaving(word.id)
+                setOnClickListener { toggleSaved(word) }
             }
         }
         card.isFocusable = true

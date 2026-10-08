@@ -46,8 +46,9 @@ class AuthFragment : ScreenFragment() {
                         }
                         submit?.isEnabled = true
                         result.onSuccess { user ->
-                            store.name = user.fullName ?: user.username ?: u
-                            enter(if (registering) R.id.onboardingFragment else R.id.homeFragment)
+                            (requireActivity() as com.example.englishlearningapp.MainActivity).loadAccountData().onFailure { toast(it.message ?: "Không tải được dữ liệu học.") }
+                            words.loadFromApi()
+                            enter(if (user.onboardingCompleted) R.id.homeFragment else R.id.onboardingFragment)
                         }.onFailure { toast(it.message ?: "Có lỗi xảy ra") }
                     }
                 }
@@ -69,6 +70,7 @@ class AuthFragment : ScreenFragment() {
 }
 
 class OnboardingFragment : ScreenFragment() {
+    private var saving=false
     private var selectedLevel = ""
     private var selectedGoal = 10
     override fun onCreate(state: Bundle?) {
@@ -90,11 +92,17 @@ class OnboardingFragment : ScreenFragment() {
         listOf(5,10,15,20).forEach { goal ->
             button("${if (goal == selectedGoal) "✓  " else ""}$goal lượt luyện tập / ngày", Palette.purple, outlined = true) { selectedGoal = goal; refresh() }
         }
-        button("Bắt đầu khám phá  →") {
-            store.saveProfile(store.name,selectedLevel,selectedGoal,store.reminders)
-            store.signedIn = true
-            findNavController().navigate(R.id.homeFragment,null,NavOptions.Builder().setPopUpTo(R.id.nav_graph,true).build())
-        }
+        button(if(saving) "Đang lưu hồ sơ…" else "Bắt đầu khám phá  →") {
+            if (saving) return@button
+            saving=true;refresh()
+            viewLifecycleOwner.lifecycleScope.launch {
+                auth.updateProfile(store.name,selectedLevel,selectedGoal,store.reminders).onSuccess {
+                    learning.load()
+                    findNavController().navigate(R.id.homeFragment,null,NavOptions.Builder().setPopUpTo(R.id.nav_graph,true).build())
+                }.onFailure { toast(it.message ?: "Chưa lưu được hồ sơ.") }
+                saving=false;refresh()
+            }
+        }.isEnabled=!saving
     }
 }
 
@@ -111,8 +119,8 @@ class ProfileFragment : ScreenFragment() {
         tile("⚙", "Cài đặt", "Tên, trình độ & mục tiêu học tập") { go(R.id.settingsFragment) }
         tile("▦", "Khu quản trị mẫu", "Khám phá giao diện dành cho Admin", Palette.purple) { go(R.id.adminFragment) }
         button("Đăng xuất", Palette.orange, outlined = true) {
-            MaterialAlertDialogBuilder(requireContext()).setTitle("Đăng xuất hồ sơ mẫu?")
-                .setMessage("Từ đã lưu và tiến độ trên máy vẫn được giữ lại.")
+            MaterialAlertDialogBuilder(requireContext()).setTitle("Đăng xuất tài khoản?")
+                .setMessage("Bộ sưu tập và tiến độ trên máy chủ được giữ lại.")
                 .setNegativeButton("Ở lại",null).setPositiveButton("Đăng xuất") { _, _ ->
                     auth.logout()
                     findNavController().navigate(R.id.loginFragment,null,NavOptions.Builder().setPopUpTo(R.id.nav_graph,true).build())
@@ -123,6 +131,7 @@ class ProfileFragment : ScreenFragment() {
 }
 
 class SettingsFragment : ScreenFragment() {
+    private var saving=false
     private var draftName = ""
     private var draftLevel = ""
     private var draftGoal = 10
@@ -162,12 +171,18 @@ class SettingsFragment : ScreenFragment() {
         }
         content.addView(toggle)
         notice("Bấm Lưu thay đổi để áp dụng. Thông báo theo lịch sẽ được triển khai ở giai đoạn sau.")
-        button("Lưu thay đổi") {
+        button(if(saving) "Đang lưu…" else "Lưu thay đổi") {
+            if (saving) return@button
             if (name.text.toString().trim().isEmpty()) name.error = "Tên không được để trống"
             else {
-                store.saveProfile(draftName.trim(),draftLevel,draftGoal,draftReminders)
-                hideKeyboard(); toast("Đã lưu cài đặt"); findNavController().popBackStack()
+                hideKeyboard();saving=true;refresh()
+                viewLifecycleOwner.lifecycleScope.launch {
+                    auth.updateProfile(draftName.trim(),draftLevel,draftGoal,draftReminders).onSuccess {
+                        learning.load();toast("Đã lưu cài đặt lên máy chủ");findNavController().popBackStack()
+                    }.onFailure { toast(it.message ?: "Chưa lưu được cài đặt.") }
+                    saving=false;refresh()
+                }
             }
-        }
+        }.isEnabled=!saving
     }
 }

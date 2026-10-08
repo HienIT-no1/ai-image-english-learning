@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, Integer, String, Text
+from sqlalchemy import Boolean, BigInteger, CheckConstraint, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -60,12 +60,19 @@ class User(Base):
     )
 
     created_at: Mapped[datetime] = mapped_column(
-        nullable=False
+        nullable=False,
+        server_default=func.now()
     )
 
     updated_at: Mapped[datetime] = mapped_column(
-        nullable=False
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now()
     )
+
+    cefr_level: Mapped[str | None] = mapped_column(String(2))
+    reminders_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    onboarding_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
     __table_args__ = (
         CheckConstraint(

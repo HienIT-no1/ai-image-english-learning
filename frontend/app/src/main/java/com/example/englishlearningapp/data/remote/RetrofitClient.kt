@@ -8,23 +8,25 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-    // Emulator: 10.0.2.2 trỏ tới máy tính chạy backend.
-    // Máy thật: đổi thành http://<IP LAN của PC>:8000/
+    // Dùng adb reverse tcp:8000 tcp:8000 để chuyển kết nối từ thiết bị về máy tính.
     private const val BASE_URL = "http://127.0.0.1:8000/"
 
-    fun create(store: LearningStore): ApiService {
+    fun create(store: LearningStore, onExpired: (String) -> Unit = {}): ApiService {
         val client = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .addInterceptor { chain ->
-                val token = store.token
+                val token = chain.request().header("Authorization")?.removePrefix("Bearer ") ?: store.token
                 val request = chain.request().newBuilder().apply {
-                    if (!token.isNullOrBlank()) addHeader("Authorization", "Bearer $token")
+                    if (chain.request().header("Authorization")==null && !token.isNullOrBlank()) addHeader("Authorization", "Bearer $token")
                 }.build()
-                chain.proceed(request)
+                val response = chain.proceed(request)
+                val authRequest = request.url.encodedPath.startsWith("/auth/")
+                if (response.code == 401 && !authRequest && !token.isNullOrBlank()) onExpired(token)
+                response
             }
-            // BODY in cả mật khẩu và token ra Logcat: chỉ dùng khi debug
-            .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY })
+            // Log request status without passwords, tokens or response bodies.
+            .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
             .build()
 
         return Retrofit.Builder()

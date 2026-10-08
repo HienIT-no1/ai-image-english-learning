@@ -4,3 +4,4 @@ psycopg2-binary
 pydantic-settings
 pwdlib[argon2]
 python-jose[cryptography]
+alembic>=1.13,<2

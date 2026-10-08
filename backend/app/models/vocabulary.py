@@ -43,6 +43,10 @@ class Vocabulary(Base):
         nullable=False
     )
 
+    topics: Mapped[list["Topic"]] = relationship(
+        secondary="vocabulary_topics", back_populates="vocabularies", order_by="Topic.topic_id"
+    )
+
     meanings: Mapped[list["VocabularyMeaning"]] = relationship(
         back_populates="vocabulary",
         cascade="all, delete-orphan"

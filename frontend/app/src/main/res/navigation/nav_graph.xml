@@ -1,4 +1,5 @@
-<navigation xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/nav_graph" app:startDestination="@id/loginFragment">
+<navigation xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/nav_graph" app:startDestination="@id/sessionFragment">
+ <fragment android:id="@+id/sessionFragment" android:name="com.example.englishlearningapp.ui.SessionFragment" android:label="session" />
  <fragment android:id="@+id/loginFragment" android:name="com.example.englishlearningapp.ui.AuthFragment" android:label="login" />
  <fragment android:id="@+id/registerFragment" android:name="com.example.englishlearningapp.ui.AuthFragment" android:label="register" />
  <fragment android:id="@+id/onboardingFragment" android:name="com.example.englishlearningapp.ui.OnboardingFragment" android:label="onboarding" />

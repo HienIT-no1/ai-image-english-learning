@@ -22,8 +22,9 @@ fun VocabularyDto.toWord(): Word {
 
         translation = firstExample?.sentenceVi ?: "",
 
-        topic = "all",
+        topic = topics.firstOrNull()?.topicId?.toString() ?: "all",
 
-        symbol = "📘"
+        symbol = mapOf("cat" to "🐱","dog" to "🐶","apple" to "🍎","car" to "🚗","computer" to "💻","bank" to "🏦","rain" to "🌧️")[word.lowercase()] ?: topics.firstOrNull()?.symbol ?: "📘",
+        topicIds = topics.map { it.topicId.toString() }
     )
 }

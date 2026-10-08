@@ -26,7 +26,10 @@ data class UserDto(
     @SerializedName("english_level") val englishLevel: String?,
     @SerializedName("daily_goal") val dailyGoal: Int?,
     @SerializedName("current_streak") val currentStreak: Int?,
-    @SerializedName("longest_streak") val longestStreak: Int?
+    @SerializedName("longest_streak") val longestStreak: Int?,
+    @SerializedName("cefr_level") val cefrLevel: String? = null,
+    @SerializedName("reminders_enabled") val remindersEnabled: Boolean = false,
+    @SerializedName("onboarding_completed") val onboardingCompleted: Boolean = false
 )
 
 data class RegisterResponse(

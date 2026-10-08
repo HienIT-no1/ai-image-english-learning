@@ -1,0 +1,96 @@
+{
+  "collection_words": [
+    "collection_word_id",
+    "collection_id",
+    "vocabulary_id",
+    "image_id",
+    "added_at"
+  ],
+  "collections": [
+    "collection_id",
+    "user_id",
+    "collection_name",
+    "description",
+    "created_at"
+  ],
+  "images": [
+    "image_id",
+    "user_id",
+    "image_url",
+    "source_type",
+    "created_at"
+  ],
+  "learning_progress": [
+    "progress_id",
+    "user_id",
+    "vocabulary_id",
+    "status",
+    "review_count",
+    "correct_count",
+    "incorrect_count",
+    "last_reviewed_at",
+    "next_review_at",
+    "created_at",
+    "updated_at"
+  ],
+  "quiz_answers": [
+    "answer_id",
+    "attempt_id",
+    "vocabulary_id",
+    "question_type",
+    "user_answer",
+    "correct_answer",
+    "is_correct",
+    "answered_at"
+  ],
+  "quiz_attempts": [
+    "attempt_id",
+    "user_id",
+    "quiz_type",
+    "total_questions",
+    "correct_answers",
+    "started_at",
+    "completed_at"
+  ],
+  "users": [
+    "user_id",
+    "username",
+    "email",
+    "password_hash",
+    "full_name",
+    "english_level",
+    "daily_goal",
+    "current_streak",
+    "longest_streak",
+    "created_at",
+    "updated_at"
+  ],
+  "vocabularies": [
+    "vocabulary_id",
+    "word",
+    "ipa",
+    "part_of_speech",
+    "level",
+    "audio_url",
+    "created_at"
+  ],
+  "vocabulary_examples": [
+    "example_id",
+    "vocabulary_id",
+    "sentence_en",
+    "sentence_vi"
+  ],
+  "vocabulary_meanings": [
+    "meaning_id",
+    "vocabulary_id",
+    "meaning_vi",
+    "definition_en"
+  ],
+  "vocabulary_relations": [
+    "relation_id",
+    "vocabulary_id",
+    "related_vocabulary_id",
+    "related_text",
+    "relation_type"
+  ]
+}

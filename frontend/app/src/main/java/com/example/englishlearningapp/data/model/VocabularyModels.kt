@@ -62,5 +62,6 @@ data class VocabularyDto(
 
     val examples: List<VocabularyExampleDto>,
 
-    val relations: List<VocabularyRelationDto>
+    val relations: List<VocabularyRelationDto>,
+    val topics: List<TopicDto> = emptyList()
 )

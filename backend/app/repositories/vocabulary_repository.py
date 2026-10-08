@@ -5,18 +5,23 @@ from app.models.vocabulary import Vocabulary
 
 
 def get_all_vocabularies(
-    db: Session
+    db: Session,
+    topic_id: int | None = None
 ) -> list[Vocabulary]:
 
     statement = (
         select(Vocabulary)
         .options(
+            selectinload(Vocabulary.topics),
             selectinload(Vocabulary.meanings),
             selectinload(Vocabulary.examples),
             selectinload(Vocabulary.relations)
         )
         .order_by(Vocabulary.vocabulary_id)
     )
+
+    if topic_id is not None:
+        statement = statement.where(Vocabulary.topics.any(topic_id=topic_id))
 
     return list(
         db.execute(statement).scalars().all()
@@ -31,6 +36,7 @@ def get_vocabulary_by_id(
     statement = (
         select(Vocabulary)
         .options(
+            selectinload(Vocabulary.topics),
             selectinload(Vocabulary.meanings),
             selectinload(Vocabulary.examples),
             selectinload(Vocabulary.relations)

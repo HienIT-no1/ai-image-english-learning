@@ -5,10 +5,32 @@ import android.view.View
 import android.widget.LinearLayout
 import androidx.core.widget.doAfterTextChanged
 import com.example.englishlearningapp.R
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 class WordsFragment : ScreenFragment() {
     private var query = ""
     private var filter = "saved"
+    private var loading = true
+    private var failure: String? = null
+    private var loadJob: Job? = null
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        load()
+    }
+    private fun load() {
+        loadJob?.cancel()
+        loading = true; failure = null; refresh()
+        loadJob = viewLifecycleOwner.lifecycleScope.launch {
+            val result = collections.load().fold(
+                onSuccess = { if (filter=="saved") words.loadTopics() else words.loadCatalog(filter) },
+                onFailure = { Result.failure(it) })
+            failure = result.exceptionOrNull()?.message
+            loading = false
+            refresh()
+        }
+    }
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         query = state?.getString("query") ?: ""
@@ -18,6 +40,8 @@ class WordsFragment : ScreenFragment() {
     override fun render() {
         val topic = words.topics.firstOrNull { it.id == filter }
         header("BỘ SƯU TẬP CỦA BẠN",topic?.name ?: "Từ vựng", "Gom những khám phá nhỏ thành vốn từ của bạn.",topic != null)
+        if (loading) { notice("Đang tải từ vựng…"); return }
+        failure?.let { notice(it); button("Thử lại") { load() }; return }
         val search = field("Tìm từ tiếng Anh hoặc nghĩa tiếng Việt",query,viewId=R.id.input_word_search)
         val chips = com.google.android.material.chip.ChipGroup(requireContext()).apply { isSingleSelection = true; isSelectionRequired = true }
         content.addView(chips)
@@ -26,7 +50,7 @@ class WordsFragment : ScreenFragment() {
             val chip = com.google.android.material.chip.Chip(requireContext()).apply {
                 text=label; isCheckable=true; isChecked=filter==id
                 setTextColor(Palette.white); chipBackgroundColor=android.content.res.ColorStateList.valueOf(if(filter==id) Palette.elevated else Palette.surface)
-                setOnClickListener { if (filter != id) { filter=id; hideKeyboard(); refresh() } }
+                setOnClickListener { if (filter != id) { filter=id; hideKeyboard(); load() } }
             }
             chips.addView(chip)
         }
@@ -49,15 +73,30 @@ class WordsFragment : ScreenFragment() {
 }
 
 class TopicsFragment : ScreenFragment() {
-    override fun render() {
-        header("KHÁM PHÁ", "Chủ đề từ vựng", "Bắt đầu với những điều quen thuộc quanh bạn.",true)
-        words.topics.forEach { topic ->
-            val topicWords=words.words.filter { it.topic==topic.id }
-            tile(topic.symbol,topic.name,"${topicWords.size} từ • ${topicWords.count { it.id in store.saved }} đã lưu") { go(R.id.wordsFragment,"topic" to topic.id) }
+    private var loading = true
+    private var failure: String? = null
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        load()
+    }
+    private fun load() {
+        loading = true; failure = null; refresh()
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = words.loadTopics()
+            failure = result.exceptionOrNull()?.let { "Không tải được chủ đề. Kiểm tra kết nối máy chủ rồi thử lại." }
+            loading = false; refresh()
         }
-        val tip=column(color=Palette.elevated)
-        text("✦  Học ít, nhớ lâu",18,Palette.purple,true,tip)
-        text("Chọn một chủ đề mỗi ngày. Lưu những từ mới và ôn lại bằng Flashcard.",14,Palette.muted,parent=tip)
+    }
+    override fun render() {
+        header("KHÁM PHÁ", "Chủ đề từ vựng", "Chọn chủ đề để xem từ vựng và ví dụ.", true)
+        if (loading) { notice("Đang tải chủ đề…"); return }
+        failure?.let { notice(it); button("Thử lại") { load() }; return }
+        if (words.topics.isEmpty()) { notice("Chưa có chủ đề nào."); return }
+        words.topics.forEach { topic ->
+            tile(topic.symbol, topic.name, "${topic.vocabularyCount} từ vựng") {
+                go(R.id.wordsFragment, "topic" to topic.id)
+            }
+        }
     }
 }
 
@@ -82,10 +121,10 @@ class WordDetailFragment : ScreenFragment() {
         text(word.example,19,bold=true,parent=examples)
         text(word.translation,14,Palette.muted,parent=examples)
         button("♫  Nghe câu ví dụ",outlined=true,parent=examples) { speak(word.example) }
-        button(if(word.id in store.saved) "★  Đã lưu • Bấm để bỏ lưu" else "＋  Lưu vào bộ sưu tập",Palette.blue) { store.toggleSave(word.id); refresh() }
+        button(if(word.id in store.saved) "★  Đã lưu • Bấm để bỏ lưu" else "＋  Lưu vào bộ sưu tập",Palette.blue) { toggleSaved(word) }.apply { isEnabled = !collections.isSaving(word.id) }
         button("Luyện tập bằng Flashcard",Palette.purple,outlined=true) { go(R.id.flashcardFragment,"wordId" to word.id) }
         section("Cùng chủ đề")
-        words.words.filter { it.topic==word.topic && it.id!=word.id }.forEach { wordRow(it) }
+        words.words.filter { it.topicIds.any { topic -> topic in word.topicIds } && it.id!=word.id }.forEach { wordRow(it) }
     }
 }
 

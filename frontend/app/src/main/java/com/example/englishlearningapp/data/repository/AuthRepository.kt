@@ -4,65 +4,42 @@ import com.example.englishlearningapp.data.local.LearningStore
 import com.example.englishlearningapp.data.model.LoginRequest
 import com.example.englishlearningapp.data.model.RegisterRequest
 import com.example.englishlearningapp.data.model.UserDto
+import com.example.englishlearningapp.data.model.ProfileUpdateRequest
 import com.example.englishlearningapp.data.remote.ApiService
-import org.json.JSONArray
-import org.json.JSONObject
-import retrofit2.Response
-import java.io.IOException
-import java.util.concurrent.CancellationException
+import com.example.englishlearningapp.data.remote.apiResult
+import com.example.englishlearningapp.data.remote.requireData
+import kotlinx.coroutines.CancellationException
 
-class AuthRepository(
-    private val api: ApiService,
-    private val store: LearningStore
-) {
-    suspend fun login(username: String, password: String): Result<UserDto> = call {
-        val res = api.login(LoginRequest(username, password))
-        if (!res.isSuccessful) throw ApiException(message(res))
-        store.token = res.body()!!.accessToken
-
-        val me = api.me()
-        if (!me.isSuccessful) throw ApiException(message(me))
-        me.body()!!
+class AuthRepository(private val api: ApiService, private val store: LearningStore,
+    private val onLogout: () -> Unit = {}) {
+    suspend fun login(username: String, password: String): Result<UserDto> = apiResult {
+        logout()
+        val token = api.login(LoginRequest(username,password)).requireData().accessToken
+        store.token = token
+        val user = api.me("Bearer $token").requireData()
+        if (store.token != token) throw CancellationException("Session changed")
+        store.activateUser(user)
+        user
     }
-
-    suspend fun register(username: String, email: String, password: String): Result<UserDto> = call {
-        val res = api.register(RegisterRequest(username, email, password))
-        if (!res.isSuccessful) throw ApiException(message(res))
-        // Đăng ký xong tự đăng nhập luôn
-        login(username, password).getOrThrow()
+    suspend fun register(username: String, email: String, password: String): Result<UserDto> = apiResult {
+        api.register(RegisterRequest(username,email,password)).requireData()
+        login(username,password).getOrThrow()
     }
-
-    fun logout() {
-        store.token = null
-        store.signedIn = false
-    }
-
-    private class ApiException(msg: String) : Exception(msg)
-
-    private suspend fun <T> call(block: suspend () -> T): Result<T> = try {
-        Result.success(block())
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: IOException) {
-    android.util.Log.e("AuthRepo", "Network error", e)
-    Result.failure(Exception("Không kết nối được máy chủ (${e.javaClass.simpleName}: ${e.message})"))
-    } catch (e: Exception) {
-        Result.failure(e)
-    }
-
-    private fun message(res: Response<*>): String {
-        val raw = res.errorBody()?.string().orEmpty()
-        val detail = runCatching {
-            val d = JSONObject(raw).get("detail")
-            if (d is JSONArray) d.getJSONObject(0).optString("msg") else d.toString()
-        }.getOrNull()
-        return when (detail) {
-            "Username already exists" -> "Tên đăng nhập đã tồn tại"
-            "Email already exists" -> "Email đã được sử dụng"
-            "Invalid username or password" -> "Sai tên đăng nhập hoặc mật khẩu"
-            "Could not validate credentials" -> "Phiên đăng nhập đã hết hạn"
-            null, "" -> "Lỗi ${res.code()}"
-            else -> detail
+    suspend fun restore(): Result<UserDto?> = apiResult {
+        val token = store.token
+        if (token.isNullOrBlank()) null else {
+            val user = api.me("Bearer $token").requireData()
+            if (store.token != token) throw CancellationException("Session changed")
+            store.activateUser(user,adoptLegacy=true)
+            user
         }
     }
+    suspend fun updateProfile(name: String,level: String,goal: Int,reminders: Boolean): Result<UserDto> = apiResult {
+        val token=store.token ?: error("Hãy đăng nhập lại.")
+        val user=api.updateProfile(ProfileUpdateRequest(name.trim(),level.substringBefore(" "),goal,reminders),"Bearer $token").requireData()
+        if (store.token!=token) throw CancellationException("Session changed")
+        store.activateUser(user)
+        user
+    }
+    fun logout() { store.clearSession(); onLogout() }
 }
