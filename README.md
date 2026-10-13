@@ -14,7 +14,7 @@
 | Quiz → tạo bài → trả lời → chấm điểm → hoàn thành | Đã nối đầy đủ | `quiz_attempts`, `quiz_answers`, `learning_events`, `learning_progress` |
 | Trang chủ, tiến độ, lượt học, mục tiêu, streak | Lấy số liệu từ API/database | Tổng hợp dữ liệu của tài khoản |
 | Chụp/chọn ảnh, nhận diện và lịch sử nhận diện | Giao diện mẫu; chưa nối YOLO | Cần triển khai backend nhận ảnh/nhận diện |
-| Quản trị từ/chủ đề/người dùng | Giao diện mẫu | Chưa có API quản trị/phân quyền |
+| Phân quyền và quản trị | Đã nối Android → API có kiểm tra ADMIN → database | Xem người dùng; thêm/sửa chủ đề và từ; xóa chủ đề trống |
 | Nhắc học, lịch ôn SRS | Chưa triển khai | Mới lưu tùy chọn nhắc học; chưa lên lịch thông báo |
 
 Quiz hình ảnh hiện dùng **biểu tượng và nghĩa tiếng Việt**, chưa dùng ảnh thật từ AI. Quiz nghe dùng Text-to-Speech trên thiết bị. Bài tổng hợp yêu cầu 8 câu; nếu kho từ có nghĩa chỉ có ít hơn 8 từ, server trả số câu thực tế. Trình độ và mục tiêu đã được lưu; hiện chưa dùng trình độ để tự điều chỉnh độ khó.
@@ -135,7 +135,7 @@ Kiểm tra phiên bản:
 .\.venv\Scripts\python.exe -m alembic current
 ```
 
-Phiên bản hiện tại: `0004_learning`. Lệnh upgrade chỉ áp dụng các bước còn thiếu; chạy lại không tạo trùng bảng/dữ liệu. Nếu database mới chưa có từ để học:
+Phiên bản hiện tại: `0005_admin_roles`. Lệnh upgrade chỉ áp dụng các bước còn thiếu; chạy lại không tạo trùng bảng/dữ liệu. Nếu database mới chưa có từ để học:
 
 ```powershell
 .\.venv\Scripts\python.exe seed_demo.py
@@ -267,6 +267,7 @@ Thoát/đóng app giữa bài → **Luyện tập → Tiếp tục bài Quiz đa
 | `0002_topics` | Thêm chủ đề và bảng liên kết, 6 chủ đề, gắn các từ quen thuộc sẵn có |
 | `0003_collection` | Thêm bộ sưu tập mặc định duy nhất theo người dùng; tập hợp từ cũ vào bộ mặc định và giữ bộ nguồn |
 | `0004_learning` | Thêm CEFR/onboarding/tùy chọn nhắc học, nhật ký lượt học, khóa phiên và đề Quiz, khóa câu/đáp án |
+| `0005_admin_roles` | Thêm role USER/ADMIN, tất cả tài khoản cũ mặc định USER; không tự cấp Admin |
 
 Bạn cùng nhóm kéo code → cài requirements → cấu hình `.env` → `alembic upgrade head`. Database mới có thể seed; không cần gửi/import lại SQL mỗi lần đổi bảng. Migration không thay thế việc sao lưu dữ liệu.
 
@@ -371,5 +372,74 @@ Kiểm tra trên máy ngày 08/10/2026: 18 test backend đã qua, build Android 
 ## 10. Hướng tiếp theo
 
 1. Nhận ảnh → backend gọi YOLO → ánh xạ nhãn thành từ thật → lưu kết quả/lịch sử và thêm từ vào bộ sưu tập.
-2. API quản trị từ/chủ đề kèm quyền ADMIN; quản lý nghĩa, ví dụ và ảnh minh họa thật.
+2. Mở rộng quản trị nghĩa/ví dụ phụ, ảnh minh họa thật và các thao tác quản lý người dùng theo nghiệp vụ.
 3. Lịch ôn SRS và nhắc học thực tế; sau đó mở rộng thống kê/lịch sử bài Quiz và danh sách bài chưa hoàn thành ở nhiều thiết bị.
+
+
+## 11. Phân quyền USER/ADMIN và tạo tài khoản Admin
+
+Admin dùng **màn hình đăng nhập chung trên Android**. Sau đăng nhập hoặc mở lại app, `/users/me` trả role từ database. USER vào học tập/onboarding; ADMIN vào Tổng quan hệ thống, có thể bấm Về trang học tập và mở lại Quản trị hệ thống trong Hồ sơ.
+
+### Quy tắc phân quyền
+
+- Đăng ký công khai luôn tạo `USER`. Gửi `role`, `is_admin` hoặc trường không được phép trong đăng ký/sửa hồ sơ bị từ chối 422.
+- Tài khoản Admin được tạo riêng bằng lệnh chạy trên server có quyền truy cập database; không có màn hình đăng ký Admin, không có mật khẩu Admin mặc định.
+- Tất cả API `/admin/*` kiểm tra `get_current_admin`. Không có token trả 401; USER trả 403. Kiểm tra này áp dụng cả đọc và ghi.
+- Backend đọc role từ PostgreSQL ở mỗi request, không tin role do Android hoặc token tự khai. Thu hồi quyền có hiệu lực ở request tiếp theo dù token cũ chưa hết hạn.
+- Role lưu trên Android chỉ dùng điều hướng/hiển thị. Đổi cache trên máy không cấp được quyền API. Đăng xuất xóa role của phiên; đổi tài khoản không giữ giao diện Admin của người trước.
+- `/admin/users` chỉ trả ID, tên đăng nhập, email, tên hiển thị và role; không trả password hash, token hay secret. Màn hình người dùng chỉ xem, phân trang 100 tài khoản.
+
+### Cấp tài khoản Admin đầu tiên
+
+Trong terminal PowerShell của VS Code, chuyển vào thư mục backend. Nếu đang ở gốc repo:
+
+```powershell
+cd backend
+```
+
+Cập nhật schema (database và .env phải đúng):
+
+```powershell
+.\.venv\Scripts\python.exe -m alembic upgrade head
+```
+
+Tạo Admin, thay email bên dưới bằng **email thật chưa được dùng cho tài khoản khác**:
+
+```powershell
+.\.venv\Scripts\python.exe create_admin.py --username admin --email "email-cua-ban@example.com" --full-name "Quản trị viên"
+```
+
+Terminal hỏi mật khẩu và nhập lại để xác nhận. Mật khẩu 8–128 ký tự, không hiện khi gõ; backend băm bằng Argon2. Không đưa mật khẩu vào command line, Git, README hay code Android. Có thể đổi `--username` theo ý bạn.
+
+Nếu tên/email đã tồn tại, lệnh dừng và giữ tài khoản cũ; không tự nâng quyền hoặc đổi mật khẩu người dùng đã có. Chọn tên/email mới để tạo một tài khoản Admin riêng. Không dùng lệnh này như một API công khai.
+
+Sau khi cập nhật backend đang chạy, dừng bằng Ctrl+C và khởi động lại Uvicorn. Run bản Android mới, chạy adb reverse như mục 4. Đăng nhập bằng tên/mật khẩu vừa cấp → Tổng quan hệ thống.
+
+### Các chức năng quản trị đã triển khai
+
+| API | Thao tác |
+|---|---|
+| `GET /admin/summary` | Số tài khoản/Admin/chủ đề/từ và Quiz hoàn thành |
+| `GET /admin/users?offset=0&limit=100` | Xem danh sách người dùng, phân trang |
+| `GET`, `POST /admin/topics` | Đọc và thêm chủ đề |
+| `PUT /admin/topics/{id}` | Sửa tên, slug, biểu tượng |
+| `DELETE /admin/topics/{id}` | Xóa chủ đề trống; chủ đề đang có từ trả 409 |
+| `GET`, `POST /admin/vocabularies` | Đọc và thêm từ, nghĩa chính, phiên âm, ví dụ, các chủ đề |
+| `PUT /admin/vocabularies/{id}` | Sửa từ, nghĩa/ví dụ chính và các liên kết chủ đề |
+
+Mã chủ đề dùng chữ thường, số và dấu gạch nối, ví dụ `school-items`. Tên/mã bị trùng trả 409. Từ vựng cần từ tiếng Anh và nghĩa tiếng Việt; có thể chọn nhiều chủ đề. Phần sửa chính giữ các nghĩa/ví dụ phụ, definition, quan hệ và lịch sử đã có. Câu ví dụ chính đang tồn tại phải được giữ hoặc sửa, không xóa bằng cách để trống. Thứ tự nghĩa/ví dụ theo ID để nội dung chính hiển thị nhất quán.
+
+Hiện chưa có xóa từ, xóa/khóa tài khoản, cấp/thu hồi role qua app hoặc quản trị nội dung Quiz riêng. Quiz vẫn được tạo từ kho từ thật. Không dùng những chức năng mẫu trước đây để giả lập thao tác trên database.
+
+### Tự thử phân quyền và một luồng quản trị
+
+1. Đăng ký USER → vào Hồ sơ: không có Quản trị hệ thống. Gọi API `/admin/summary` bằng token USER phải trả 403.
+2. Chạy lệnh cấp Admin, đăng nhập Admin → xem Tổng quan và Người dùng.
+3. Chủ đề → Thêm chủ đề → nhập tên/mã/biểu tượng → Lưu. Mở pgAdmin bảng `topics` hoặc API `/topics` để thấy dữ liệu.
+4. Kho từ vựng → Thêm từ → nhập từ/nghĩa/ví dụ → Chọn chủ đề vừa tạo → Lưu. USER mở chủ đề đó sẽ thấy từ mới.
+5. Sửa nghĩa chính → USER tải lại danh sách/chi tiết từ để lấy nội dung mới.
+6. Thử xóa chủ đề đang có từ: bị từ chối. Bỏ liên kết bằng màn sửa từ rồi có thể xóa chủ đề trống.
+
+Kiểm thử backend có thêm chống tự cấp quyền, từ chối tất cả route quản trị đối với USER/không token, kiểm tra role đang có trong DB, lệnh cấp Admin không đổi tài khoản cũ, giữ các nghĩa/ví dụ phụ và dữ liệu cũ khi migration. Khi kiểm tra thu hồi quyền trong database, chỉ sửa tài khoản kiểm thử đã tạo; không thu hồi tài khoản Admin đang cần dùng.
+
+Kiểm tra ngày 14/10/2026: 24 test backend đã qua; Android assembleDebug thành công. Emulator xác nhận USER không có menu Admin và nhận 403 ở API; Admin đăng nhập chung, thêm/sửa chủ đề và từ thật; thu hồi role khiến token cũ bị từ chối và app trở về USER khi mở lại. Tài khoản/dữ liệu kiểm thử đã được xóa; dữ liệu và SharedPreferences ban đầu được giữ lại.

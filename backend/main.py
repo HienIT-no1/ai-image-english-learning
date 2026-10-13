@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from app.routers.admin import router as admin_router
 from app.routers.quizzes import router as quizzes_router
 from app.routers.learning import router as learning_router
 from app.routers.collections import router as collections_router
@@ -15,6 +16,7 @@ app = FastAPI(
 )
 
 
+app.include_router(admin_router)
 app.include_router(quizzes_router)
 app.include_router(learning_router)
 app.include_router(collections_router)

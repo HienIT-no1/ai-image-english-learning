@@ -24,7 +24,7 @@ class SessionFragment : ScreenFragment() {
                     val loaded=(requireActivity() as com.example.englishlearningapp.MainActivity).loadAccountData()
                     loaded.onSuccess {
                         words.loadFromApi()
-                        enter(if(store.onboardingCompleted) R.id.homeFragment else R.id.onboardingFragment)
+                        enter(if(store.isAdmin) R.id.adminFragment else if(store.onboardingCompleted) R.id.homeFragment else R.id.onboardingFragment)
                     }.onFailure { failure=it.message; checking=false; refresh() }
                 }
             }.onFailure { failure=it.message; checking=false; refresh() }

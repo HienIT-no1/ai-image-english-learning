@@ -6,4 +6,12 @@
     <item name="input_word_search" type="id" />
     <item name="input_quiz_answer" type="id" />
     <item name="quiz_prompt" type="id" />
+    <item name="input_admin_name" type="id" />
+    <item name="input_admin_slug" type="id" />
+    <item name="input_admin_symbol" type="id" />
+    <item name="input_admin_word" type="id" />
+    <item name="input_admin_ipa" type="id" />
+    <item name="input_admin_meaning" type="id" />
+    <item name="input_admin_sentence" type="id" />
+    <item name="input_admin_translation" type="id" />
 </resources>

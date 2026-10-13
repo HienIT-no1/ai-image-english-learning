@@ -1,7 +1,6 @@
 package com.example.englishlearningapp.data.local
 
 import android.content.Context
-import com.example.englishlearningapp.data.mock.MockData
 import org.json.JSONArray
 
 /** Session, per-account API cache and retry requests. PostgreSQL owns learning results. */
@@ -35,12 +34,17 @@ class LearningStore(private val context: Context) {
         goal = user.dailyGoal ?: 10
         reminders = user.remindersEnabled
         onboardingCompleted = user.onboardingCompleted
+        role = user.role ?: "USER"
         signedIn = true
     }
 
     fun clearSession() {
-        sessionPrefs.edit().remove("token").remove("active_user_id").putBoolean("signed_in",false).apply()
+        sessionPrefs.edit().remove("token").remove("active_user_id").remove("role").putBoolean("signed_in",false).apply()
     }
+    var role: String
+        get() = sessionPrefs.getString("role","USER") ?: "USER"
+        set(value) { sessionPrefs.edit().putString("role",value).apply() }
+    val isAdmin get() = signedIn && userId!=null && !token.isNullOrBlank() && role=="ADMIN"
     var signedIn: Boolean
         get() = sessionPrefs.getBoolean("signed_in", false)
         set(value) { sessionPrefs.edit().putBoolean("signed_in", value).apply() }
@@ -100,17 +104,6 @@ class LearningStore(private val context: Context) {
     val quizRuns get() = prefs.getInt("quiz_runs",0)
     val quizCorrect get() = prefs.getInt("quiz_correct",0)
     val quizTotal get() = prefs.getInt("quiz_total",0)
-    fun adminItems(kind: String): List<String> {
-        val defaults = when (kind) {
-            "users" -> listOf("Minh Anh • A1", "Hoàng Nam • A2", "Thu Hà • B1")
-            "topics" -> MockData.topics.map { it.name }
-            "quiz" -> listOf("Nhìn ảnh chọn từ", "Nhìn từ chọn ảnh", "Nghe chọn đáp án", "Điền từ")
-            "content" -> listOf("Mẹo học từ vựng mỗi ngày", "Hướng dẫn Flashcard", "Ôn tập ngắt quãng")
-            else -> MockData.words.map { "${it.english} • ${it.meaning}" }
-        }
-        return readList("admin_$kind", defaults)
-    }
-    fun saveAdminItems(kind: String, items: List<String>) { prefs.edit().putString("admin_$kind", JSONArray(items).toString()).apply() }
     private fun readList(key: String, defaults: List<String>): List<String> = runCatching {
         val array = JSONArray(prefs.getString(key,JSONArray(defaults).toString()))
         (0 until array.length()).mapNotNull { array.opt(it) as? String }

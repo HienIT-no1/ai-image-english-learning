@@ -1,7 +1,8 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 
 class RegisterRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     username: str = Field(
         min_length=3,
         max_length=50

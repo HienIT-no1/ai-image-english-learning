@@ -50,7 +50,7 @@ def test_fresh_database_and_repeated_upgrade(isolated_db):
     with engine.connect() as c:
         assert c.execute(text("SELECT count(*) FROM topics")).scalar_one() == 6
         assert c.execute(text("SELECT word FROM vocabularies WHERE vocabulary_id=:id"), {"id": ident}).scalar_one() == "cat"
-        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0004_learning"
+        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0005_admin_roles"
 
 def test_adopt_legacy_data_and_api(isolated_db):
     engine, migrate = isolated_db

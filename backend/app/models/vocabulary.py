@@ -49,11 +49,13 @@ class Vocabulary(Base):
 
     meanings: Mapped[list["VocabularyMeaning"]] = relationship(
         back_populates="vocabulary",
+        order_by="VocabularyMeaning.meaning_id",
         cascade="all, delete-orphan"
     )
 
     examples: Mapped[list["VocabularyExample"]] = relationship(
         back_populates="vocabulary",
+        order_by="VocabularyExample.example_id",
         cascade="all, delete-orphan"
     )
 

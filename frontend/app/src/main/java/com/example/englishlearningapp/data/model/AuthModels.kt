@@ -29,7 +29,8 @@ data class UserDto(
     @SerializedName("longest_streak") val longestStreak: Int?,
     @SerializedName("cefr_level") val cefrLevel: String? = null,
     @SerializedName("reminders_enabled") val remindersEnabled: Boolean = false,
-    @SerializedName("onboarding_completed") val onboardingCompleted: Boolean = false
+    @SerializedName("onboarding_completed") val onboardingCompleted: Boolean = false,
+    val role: String? = "USER"
 )
 
 data class RegisterResponse(

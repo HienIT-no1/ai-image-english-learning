@@ -9,6 +9,7 @@ import com.example.englishlearningapp.data.model.VocabularyDto
 import com.example.englishlearningapp.data.model.TopicDto
 import com.example.englishlearningapp.data.model.CollectionDto
 import com.example.englishlearningapp.data.model.*
+import retrofit2.http.Query
 import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.Response
@@ -21,6 +22,25 @@ import retrofit2.http.Path
 
 
 interface ApiService {
+    @GET("admin/summary")
+    suspend fun adminSummary(@Header("Authorization") auth: String): Response<AdminSummaryDto>
+    @GET("admin/users")
+    suspend fun adminUsers(@Query("offset") offset: Int,@Header("Authorization") auth: String): Response<List<AdminUserDto>>
+    @GET("admin/topics")
+    suspend fun adminTopics(@Header("Authorization") auth: String): Response<List<TopicDto>>
+    @POST("admin/topics")
+    suspend fun createTopic(@Body body: AdminTopicRequest,@Header("Authorization") auth: String): Response<TopicDto>
+    @PUT("admin/topics/{id}")
+    suspend fun updateTopic(@Path("id") id: Long,@Body body: AdminTopicRequest,@Header("Authorization") auth: String): Response<TopicDto>
+    @DELETE("admin/topics/{id}")
+    suspend fun deleteTopic(@Path("id") id: Long,@Header("Authorization") auth: String): Response<MessageDto>
+    @GET("admin/vocabularies")
+    suspend fun adminWords(@Header("Authorization") auth: String): Response<List<VocabularyDto>>
+    @POST("admin/vocabularies")
+    suspend fun createWord(@Body body: AdminWordRequest,@Header("Authorization") auth: String): Response<VocabularyDto>
+    @PUT("admin/vocabularies/{id}")
+    suspend fun updateWord(@Path("id") id: Long,@Body body: AdminWordRequest,@Header("Authorization") auth: String): Response<VocabularyDto>
+
     @PATCH("users/me")
     suspend fun updateProfile(@Body body: ProfileUpdateRequest,@Header("Authorization") authorization: String): Response<UserDto>
     @GET("learning/me")

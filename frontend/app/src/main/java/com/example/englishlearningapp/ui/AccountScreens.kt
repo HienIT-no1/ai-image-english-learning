@@ -48,7 +48,7 @@ class AuthFragment : ScreenFragment() {
                         result.onSuccess { user ->
                             (requireActivity() as com.example.englishlearningapp.MainActivity).loadAccountData().onFailure { toast(it.message ?: "Không tải được dữ liệu học.") }
                             words.loadFromApi()
-                            enter(if (user.onboardingCompleted) R.id.homeFragment else R.id.onboardingFragment)
+                            enter(if (user.role=="ADMIN") R.id.adminFragment else if (user.onboardingCompleted) R.id.homeFragment else R.id.onboardingFragment)
                         }.onFailure { toast(it.message ?: "Có lỗi xảy ra") }
                     }
                 }
@@ -64,7 +64,7 @@ class AuthFragment : ScreenFragment() {
     }
 
     private fun enter(destination: Int) {
-        store.signedIn = destination == R.id.homeFragment
+        store.signedIn = destination == R.id.homeFragment || destination == R.id.adminFragment
         findNavController().navigate(destination, null, NavOptions.Builder().setPopUpTo(R.id.nav_graph, true).build())
     }
 }
@@ -117,7 +117,7 @@ class ProfileFragment : ScreenFragment() {
         tile("↗", "Tiến độ học tập", "Thống kê & mục tiêu mỗi ngày") { go(R.id.progressFragment) }
         tile("◷", "Lịch sử nhận diện", "Các lần thử nhận diện bằng ảnh") { go(R.id.historyFragment) }
         tile("⚙", "Cài đặt", "Tên, trình độ & mục tiêu học tập") { go(R.id.settingsFragment) }
-        tile("▦", "Khu quản trị mẫu", "Khám phá giao diện dành cho Admin", Palette.purple) { go(R.id.adminFragment) }
+        if (store.isAdmin) tile("▦", "Quản trị hệ thống", "Quản lý người dùng, chủ đề và từ vựng", Palette.purple) { go(R.id.adminFragment) }
         button("Đăng xuất", Palette.orange, outlined = true) {
             MaterialAlertDialogBuilder(requireContext()).setTitle("Đăng xuất tài khoản?")
                 .setMessage("Bộ sưu tập và tiến độ trên máy chủ được giữ lại.")

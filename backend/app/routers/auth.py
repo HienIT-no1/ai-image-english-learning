@@ -29,6 +29,7 @@ def register(
     return {
         "message": "User registered successfully",
         "user": {
+            "role": user.role,
             "user_id": user.user_id,
             "username": user.username,
             "email": user.email,

@@ -74,7 +74,10 @@ class User(Base):
     reminders_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
+    role: Mapped[str] = mapped_column(String(10), nullable=False, server_default="USER")
+
     __table_args__ = (
+        CheckConstraint("role IN ('USER','ADMIN')", name="users_role_check"),
         CheckConstraint(
             "english_level IN ('BEGINNER', 'INTERMEDIATE', 'ADVANCED')",
             name="users_english_level_check"

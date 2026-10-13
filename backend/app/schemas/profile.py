@@ -2,6 +2,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class ProfileUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     full_name: str = Field(min_length=1,max_length=100)
     cefr_level: Literal['A1','A2','B1','B2']
     daily_goal: int = Field(ge=1,le=200)
@@ -15,6 +16,7 @@ class ProfileUpdate(BaseModel):
 
 class ProfileResponse(BaseModel):
     model_config=ConfigDict(from_attributes=True)
+    role: Literal["USER", "ADMIN"]
     user_id: int
     username: str
     email: str

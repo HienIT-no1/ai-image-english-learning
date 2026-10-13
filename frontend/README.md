@@ -8,6 +8,6 @@ Android lấy hồ sơ, chủ đề, từ vựng, bộ sưu tập, Flashcard, Qu
 
 `data/remote/RetrofitClient.kt` dùng `http://127.0.0.1:8000/`. Chạy backend và `adb reverse tcp:8000 tcp:8000` trước khi Run app. Cấu hình Gradle hiện yêu cầu JVM 25 và compile SDK 37; dùng wrapper của repo.
 
-Camera/nhận diện và quản trị hiện là giao diện mẫu; YOLO, thông báo theo lịch và SRS còn cần tích hợp. Quiz hình ảnh dùng biểu tượng/nghĩa tiếng Việt; Quiz nghe cần giọng TTS tiếng Anh trên thiết bị.
+Admin đăng nhập chung, có quản trị người dùng (xem), chủ đề và kho từ qua API kiểm tra ADMIN. Xem mục 11 của README gốc để cấp tài khoản Admin bằng lệnh server. Camera/nhận diện hiện là giao diện mẫu; YOLO, thông báo theo lịch và SRS còn cần tích hợp. Quiz hình ảnh dùng biểu tượng/nghĩa tiếng Việt; Quiz nghe cần giọng TTS tiếng Anh trên thiết bị.
 
 APK debug: `app/build/outputs/apk/debug/app-debug.apk`.

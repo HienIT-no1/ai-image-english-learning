@@ -13,6 +13,7 @@ import androidx.navigation.NavOptions
 import androidx.navigation.fragment.NavHostFragment
 import com.example.englishlearningapp.data.local.LearningStore
 import com.example.englishlearningapp.data.remote.RetrofitClient
+import com.example.englishlearningapp.data.repository.AdminRepository
 import com.example.englishlearningapp.data.repository.AuthRepository
 import com.example.englishlearningapp.data.repository.CollectionRepository
 import com.example.englishlearningapp.data.repository.LearningRepository
@@ -36,6 +37,8 @@ class MainActivity : AppCompatActivity() {
         private set
     lateinit var quizzes: QuizRepository
         private set
+    lateinit var admin: AdminRepository
+        private set
     private var tts: TextToSpeech? = null
     private var speechReady = false
     private var checkingSession = false
@@ -54,6 +57,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+        admin = AdminRepository(api,store)
         words = WordRepository(api)
         collections = CollectionRepository(api,store,words)
         learning = LearningRepository(api,store)
@@ -110,7 +114,14 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val result=auth.restore()
-                result.onSuccess { if (it != null) loadAccountData() }
+                result.onSuccess { user ->
+                    if (user != null) {
+                        if (!store.isAdmin && nav.currentDestination?.id in setOf(R.id.adminFragment,R.id.adminListFragment)) {
+                            nav.navigate(R.id.homeFragment,null,NavOptions.Builder().setPopUpTo(R.id.nav_graph,true).build())
+                        }
+                        loadAccountData()
+                    }
+                }
                     .onFailure { Toast.makeText(this@MainActivity,it.message,Toast.LENGTH_LONG).show() }
             } finally { checkingSession=false }
         }
