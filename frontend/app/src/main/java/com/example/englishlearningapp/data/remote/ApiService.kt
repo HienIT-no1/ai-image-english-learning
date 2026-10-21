@@ -22,6 +22,13 @@ import retrofit2.http.Path
 
 
 interface ApiService {
+    @POST("games/word-shooter")
+    suspend fun startGame(@Body body: GameStartRequest,@Header("Authorization") auth: String): Response<GameRunDto>
+    @POST("games/word-shooter/{run}/rounds/{round}/finish")
+    suspend fun finishGame(@Path("run") run: Long,@Path("round") round: Long,@Body body: GameFinishRequest,@Header("Authorization") auth: String): Response<GameRunDto>
+    @POST("games/word-shooter/{run}/rounds/{round}/next")
+    suspend fun nextGame(@Path("run") run: Long,@Path("round") round: Long,@Header("Authorization") auth: String): Response<GameRunDto>
+
     @GET("admin/summary")
     suspend fun adminSummary(@Header("Authorization") auth: String): Response<AdminSummaryDto>
     @GET("admin/users")

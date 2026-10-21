@@ -10,3 +10,5 @@ from app.models.image import Image
 
 from app.models.learning import LearningProgress, LearningEvent
 from app.models.quiz import QuizAttempt, QuizAnswer
+
+from app.models.game import GameRun, GameRound

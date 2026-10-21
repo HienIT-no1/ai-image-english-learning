@@ -18,6 +18,7 @@ import com.example.englishlearningapp.data.repository.AuthRepository
 import com.example.englishlearningapp.data.repository.CollectionRepository
 import com.example.englishlearningapp.data.repository.LearningRepository
 import com.example.englishlearningapp.data.remote.apiResult
+import com.example.englishlearningapp.data.repository.GameRepository
 import com.example.englishlearningapp.data.repository.QuizRepository
 import com.example.englishlearningapp.data.repository.WordRepository
 import com.google.android.material.bottomnavigation.BottomNavigationView
@@ -36,6 +37,8 @@ class MainActivity : AppCompatActivity() {
     lateinit var learning: LearningRepository
         private set
     lateinit var quizzes: QuizRepository
+        private set
+    lateinit var games: GameRepository
         private set
     lateinit var admin: AdminRepository
         private set
@@ -62,6 +65,7 @@ class MainActivity : AppCompatActivity() {
         collections = CollectionRepository(api,store,words)
         learning = LearningRepository(api,store)
         quizzes = QuizRepository(api,store,words,learning)
+        games = GameRepository(api,store,learning)
         auth = AuthRepository(api,store) { collections.reset(); learning.reset() }
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
@@ -90,7 +94,12 @@ class MainActivity : AppCompatActivity() {
         }
         // A restored navigation stack also passes through the session check before showing account data.
         if (savedInstanceState != null) {
-            nav.navigate(R.id.sessionFragment,null,NavOptions.Builder().setPopUpTo(R.id.nav_graph,true).build())
+            val resume=Bundle().apply {
+                if (nav.currentDestination?.id==R.id.wordShooterFragment && games.canResume) {
+                    putLong("resumeGameUser",store.userId ?: 0L)
+                }
+            }
+            nav.navigate(R.id.sessionFragment,resume,NavOptions.Builder().setPopUpTo(R.id.nav_graph,true).build())
         }
         tts = TextToSpeech(this) { status ->
             if (status==TextToSpeech.SUCCESS) speechReady=(tts?.setLanguage(Locale.ENGLISH) ?: -1)>=TextToSpeech.LANG_AVAILABLE
@@ -99,6 +108,7 @@ class MainActivity : AppCompatActivity() {
     suspend fun loadAccountData(): Result<Unit> = apiResult {
         collections.load().getOrThrow()
         quizzes.syncPending().getOrThrow()
+        games.syncPending().getOrThrow()
         learning.load().getOrThrow()
     }
     fun openLogin() {

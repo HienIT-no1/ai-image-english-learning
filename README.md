@@ -12,12 +12,13 @@
 | Chọn trình độ/mục tiêu lần đầu; sửa hồ sơ, cài đặt | Đã nối đầy đủ | `users` |
 | Flashcard → tự đánh giá → cập nhật tiến độ | Đã nối đầy đủ | `learning_events`, `learning_progress` |
 | Quiz → tạo bài → trả lời → chấm điểm → hoàn thành | Đã nối đầy đủ | `quiz_attempts`, `quiz_answers`, `learning_events`, `learning_progress` |
+| Trò chơi Bắn chữ → chọn nguồn → chơi → lưu kết quả → màn tiếp | Đã nối Android → API → PostgreSQL | `game_runs`, `game_rounds`, `learning_events`, `learning_progress` |
 | Trang chủ, tiến độ, lượt học, mục tiêu, streak | Lấy số liệu từ API/database | Tổng hợp dữ liệu của tài khoản |
 | Chụp/chọn ảnh, nhận diện và lịch sử nhận diện | Giao diện mẫu; chưa nối YOLO | Cần triển khai backend nhận ảnh/nhận diện |
 | Phân quyền và quản trị | Đã nối Android → API có kiểm tra ADMIN → database | Xem người dùng; thêm/sửa chủ đề và từ; xóa chủ đề trống |
 | Nhắc học, lịch ôn SRS | Chưa triển khai | Mới lưu tùy chọn nhắc học; chưa lên lịch thông báo |
 
-Quiz hình ảnh hiện dùng **biểu tượng và nghĩa tiếng Việt**, chưa dùng ảnh thật từ AI. Quiz nghe dùng Text-to-Speech trên thiết bị. Bài tổng hợp yêu cầu 8 câu; nếu kho từ có nghĩa chỉ có ít hơn 8 từ, server trả số câu thực tế. Trình độ và mục tiêu đã được lưu; hiện chưa dùng trình độ để tự điều chỉnh độ khó.
+Quiz hình ảnh hiện dùng **biểu tượng và nghĩa tiếng Việt**, chưa dùng ảnh thật từ AI. Quiz nghe dùng Text-to-Speech trên thiết bị. Bài tổng hợp yêu cầu 8 câu; nếu kho từ có nghĩa chỉ có ít hơn 8 từ, server trả số câu thực tế. Trình độ và mục tiêu đã được lưu; Quiz hiện chưa tự điều chỉnh độ khó theo trình độ. Trò Bắn chữ ngẫu nhiên lọc cấp độ từ theo CEFR; tốc độ rơi tăng theo màn và có giới hạn.
 
 ## 2. Cấu trúc dự án và trách nhiệm
 
@@ -135,7 +136,7 @@ Kiểm tra phiên bản:
 .\.venv\Scripts\python.exe -m alembic current
 ```
 
-Phiên bản hiện tại: `0005_admin_roles`. Lệnh upgrade chỉ áp dụng các bước còn thiếu; chạy lại không tạo trùng bảng/dữ liệu. Nếu database mới chưa có từ để học:
+Phiên bản hiện tại: `0006_word_shooter`. Lệnh upgrade chỉ áp dụng các bước còn thiếu; chạy lại không tạo trùng bảng/dữ liệu. Nếu database mới chưa có từ để học:
 
 ```powershell
 .\.venv\Scripts\python.exe seed_demo.py
@@ -268,6 +269,7 @@ Thoát/đóng app giữa bài → **Luyện tập → Tiếp tục bài Quiz đa
 | `0003_collection` | Thêm bộ sưu tập mặc định duy nhất theo người dùng; tập hợp từ cũ vào bộ mặc định và giữ bộ nguồn |
 | `0004_learning` | Thêm CEFR/onboarding/tùy chọn nhắc học, nhật ký lượt học, khóa phiên và đề Quiz, khóa câu/đáp án |
 | `0005_admin_roles` | Thêm role USER/ADMIN, tất cả tài khoản cũ mặc định USER; không tự cấp Admin |
+| `0006_word_shooter` | Thêm lượt chơi, màn chơi; cho phép learning event loại GAME; giữ dữ liệu cũ |
 
 Bạn cùng nhóm kéo code → cài requirements → cấu hình `.env` → `alembic upgrade head`. Database mới có thể seed; không cần gửi/import lại SQL mỗi lần đổi bảng. Migration không thay thế việc sao lưu dữ liệu.
 
@@ -285,7 +287,7 @@ Khi thay model/schema, tạo revision mới và đọc kỹ trước khi áp d�
 .\.venv\Scripts\python.exe -m alembic check
 ```
 
-Autogenerate hiện quản lý `topics`, `vocabulary_topics`, `collections`, `collection_words`, `learning_progress`, `learning_events`, `quiz_attempts`, `quiz_answers`. Một số model legacy chưa mô tả toàn bộ schema, nên các bảng khác (gồm `users`) cần migration thủ công hoặc hoàn thiện mapping trước khi đưa vào `MANAGED_TABLES` trong `migrations/env.py`.
+Autogenerate hiện quản lý `topics`, `vocabulary_topics`, `collections`, `collection_words`, `learning_progress`, `learning_events`, `quiz_attempts`, `quiz_answers`, `game_runs`, `game_rounds`. Một số model legacy chưa mô tả toàn bộ schema, nên các bảng khác (gồm `users`) cần migration thủ công hoặc hoàn thiện mapping trước khi đưa vào `MANAGED_TABLES` trong `migrations/env.py`.
 
 Baseline kiểm tra đủ bảng/cột, không xác thực mọi kiểu/constraint của schema tự sửa. Schema legacy chỉ có một phần bị từ chối; cần sửa/import đủ schema trước. Migration cần kết nối PostgreSQL, chưa hỗ trợ xuất SQL offline. Downgrade các revision thêm bảng/cột có thể xóa dữ liệu của phần đó; baseline từ chối downgrade để bảo vệ dữ liệu đã tiếp nhận.
 
@@ -443,3 +445,117 @@ Hiện chưa có xóa từ, xóa/khóa tài khoản, cấp/thu hồi role qua ap
 Kiểm thử backend có thêm chống tự cấp quyền, từ chối tất cả route quản trị đối với USER/không token, kiểm tra role đang có trong DB, lệnh cấp Admin không đổi tài khoản cũ, giữ các nghĩa/ví dụ phụ và dữ liệu cũ khi migration. Khi kiểm tra thu hồi quyền trong database, chỉ sửa tài khoản kiểm thử đã tạo; không thu hồi tài khoản Admin đang cần dùng.
 
 Kiểm tra ngày 14/10/2026: 24 test backend đã qua; Android assembleDebug thành công. Emulator xác nhận USER không có menu Admin và nhận 403 ở API; Admin đăng nhập chung, thêm/sửa chủ đề và từ thật; thu hồi role khiến token cũ bị từ chối và app trở về USER khi mở lại. Tài khoản/dữ liệu kiểm thử đã được xóa; dữ liệu và SharedPreferences ban đầu được giữ lại.
+
+
+## 12. Trò chơi Bắn chữ — Android → FastAPI → PostgreSQL
+
+### Cách mở và chơi
+
+Trang chủ hoặc Luyện tập → **Trò chơi** → chọn nguồn từ:
+
+- **Ngẫu nhiên**: từ phù hợp trình độ; một chặng tối đa 5 màn vượt thành công.
+- **Theo chủ đề**: chọn một chủ đề, chơi đến khi hoàn thành bộ từ.
+- **Ôn từ của bạn**: chọn từ đã lưu, từ khó hoặc kết hợp. Từ khó là từ có lần đánh giá gần nhất sai; dữ liệu cũ chưa có nhật ký dùng số sai lớn hơn số đúng làm dự phòng.
+
+Mỗi màn tối đa **20 từ khác nhau**. Nếu nhóm chỉ còn ít hơn 20 từ, số từ thực tế được ghi trên màn hình, không lặp lại từ đã đúng để bù số lượng. Chỉ các từ có nghĩa và gõ được bằng A–Z được chọn; khoảng trắng, gạch nối và dấu nháy được điền sẵn. Giới hạn 24 chữ cái mỗi từ/cụm từ để phù hợp màn hình điện thoại.
+
+1. Bấm **Tiếp tục** để bắt đầu. Nghĩa tiếng Việt và các ô trống rơi dần xuống.
+2. Từ đang ngắm có viền xanh; chạm từ khác để đổi mục tiêu. Sau khi hoàn thành/bỏ lỡ mục tiêu, game ngắm từ gần đáy nhất.
+3. Bấm bàn phím A–Z của game hoặc bàn phím vật lý để bắn chữ tiếp theo. Hoàn thành từ sẽ phát âm bằng TTS trên thiết bị.
+4. **Gõ sai chữ chỉ hiện hiệu ứng sai**: không trừ lượt, không xóa chữ đúng và không làm đứt combo.
+5. Hoàn thành 5 từ liên tiếp bắt đầu combo. Chuỗi tiếp tục 6, 7… đến hết màn; màu đạn và hiệu ứng tăng ở các mốc 5/10/15. Combo 20 có kết quả HOÀN HẢO.
+6. **Chạm đáy mới làm đứt combo** và tăng số bỏ lỡ. Được bỏ lỡ 3 từ; lần thứ 4 thua màn và dừng ngay.
+7. Tạm dừng hoặc chuyển ứng dụng dừng đồng hồ rơi. Nút **Tiếp tục / xem kết quả lượt trước** phục hồi lượt trên cùng thiết bị và cùng tài khoản.
+
+### Chuyển màn và tính điểm
+
+- Vượt màn: màn sau gồm từ bỏ lỡ của màn trước + từ chưa chơi, tối đa 20. Các từ đã đúng trong những màn **đã vượt** bị loại khỏi phần còn lại của lượt này.
+- Ví dụ: đúng 17, bỏ lỡ 3 → màn sau có 3 từ cần ôn + 17 từ mới nếu đủ kho từ.
+- Thua màn: chơi lại chính bộ từ của màn đó, giữ số màn; các kết quả đã gửi vẫn nằm trong lịch sử học.
+- Ngẫu nhiên kết thúc sau 5 màn đã vượt hoặc hết bộ từ. Chủ đề/ôn tập kết thúc khi hết từ chưa đúng. Nếu chỉ còn từ sai, màn cuối dùng các từ đó.
+- Mỗi từ hoàn thành được 100 điểm, cộng thêm `25 × floor(combo hiện tại / 5)`. Sai chữ không giảm điểm. Tổng điểm lượt chơi cộng điểm của các lần chơi màn, gồm cả lần thua; chưa có bảng xếp hạng thi đấu.
+- Tốc độ tăng nhẹ theo màn và đạt trần; từ dài có nhiều thời gian hơn. Màn kết quả cho nghe lại từ bỏ lỡ.
+
+### Chạy trên máy này sau khi kéo code
+
+Trong VS Code, mở repo `ai-image-english-learning`. Terminal PowerShell ở thư mục gốc:
+
+```powershell
+cd backend
+```
+
+Cập nhật bảng tự động, không import lại database:
+
+```powershell
+.\.venv\Scripts\python.exe -m alembic upgrade head
+```
+
+Nếu muốn bộ từ khởi đầu để thử các màn 20 từ:
+
+```powershell
+.\.venv\Scripts\python.exe seed_game.py
+```
+
+Lệnh seed có 100 từ cơ bản thuộc Động vật, Đồ ăn, Đồ vật, Địa điểm và Thiên nhiên. Chạy lại không nhân đôi từ; giữ nội dung từ/nghĩa đã có và bổ sung liên kết chủ đề. Không tự điền từ vào bộ sưu tập cá nhân. Có thể dùng Admin để thêm từ riêng thay cho bộ khởi đầu này.
+
+Nếu server cũ đang chạy, Ctrl+C ở terminal server rồi chạy:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000
+```
+
+Android Studio mở `frontend`, chạy app trên emulator. Trong terminal khác, nối API:
+
+```powershell
+& "D:\PhanMem\AndroidStudioSDK\platform-tools\adb.exe" reverse tcp:8000 tcp:8000
+```
+
+Đăng nhập → Trang chủ/Luyện tập → Trò chơi. Để thử bộ từ đã lưu, lưu vài từ trong Kho từ vựng trước. Để thử Từ khó, đánh giá Cần ôn lại bằng Flashcard, trả lời sai Quiz hoặc để từ chạm đáy trong một màn đã gửi kết quả.
+
+### Dữ liệu đi qua những đâu?
+
+```text
+GamesFragment chọn nguồn từ
+  → GameRepository + Retrofit gửi nguồn và UUID lượt chơi
+  → /games/word-shooter xác thực tài khoản
+  → game_service chọn và chụp lại bộ từ từ PostgreSQL
+  → game_runs + game_rounds lưu lượt và bộ từ của màn
+  → WordShooterEngine xử lý rơi, gõ chữ, combo trên Android
+  → hết màn gửi các từ đúng/bỏ lỡ theo thứ tự hoàn thành
+  → backend kiểm tra bộ từ, đáp án, số bỏ lỡ; tự tính combo và điểm
+  → lưu kết quả game_rounds + learning_events(kind=GAME) + learning_progress
+  → Android hiện kết quả, gọi API màn tiếp theo
+```
+
+| API có Bearer token | Chức năng |
+|---|---|
+| `POST /games/word-shooter` | Tạo hoặc phục hồi lượt theo `client_session_id`; nguồn RANDOM/TOPIC/SAVED/DIFFICULT/REVIEW |
+| `GET /games/word-shooter/{run_id}` | Lấy lượt và màn hiện tại, chỉ chủ tài khoản được xem |
+| `POST /games/word-shooter/{run_id}/rounds/{round_id}/finish` | Gửi kết quả một màn; server tính điểm/combo, ghi tiến độ |
+| `POST /games/word-shooter/{run_id}/rounds/{round_id}/next` | Tạo màn tiếp hoặc chơi lại màn thua; gọi lại không nhảy nhiều màn |
+
+Backend không nhận điểm hoặc combo tự khai từ Android. Kết quả gửi lại giống nhau không tạo thêm lượt học; gửi khác kết quả đã chốt trả 409. Từ chưa xử lý khi thua không bị tính là sai. Chơi đúng một từ không tự đổi trạng thái thành MASTERED; đánh giá Flashcard đã có được giữ. Mỗi từ được xử lý trong màn đã gửi tính một lượt học vào mục tiêu/streak theo giờ Việt Nam. Không cộng vào thống kê Quiz.
+
+Trạng thái đang gõ và thời gian rơi lưu riêng theo tài khoản trên thiết bị, ghi lại định kỳ/khi thao tác/khi tạm dừng. Kết quả chỉ được xác nhận trên server khi kết thúc màn; nếu mất mạng, Android giữ yêu cầu để thử lại. Sau khi xóa dữ liệu app hoặc đổi thiết bị, không có phần chữ đang gõ; backend vẫn giữ màn và các kết quả đã gửi. Đây là trò luyện tập, chưa có cơ chế chống gian lận cho thi đấu.
+
+### File chính và kiểm thử
+
+- Backend: `app/models/game.py`, `schemas/game.py`, `routers/games.py`, `services/game_service.py`, migration `0006_word_shooter.py`.
+- Android: `ui/GameScreens.kt`, `ui/WordShooterView.kt`, `game/WordShooterEngine.kt`, `data/repository/GameRepository.kt`.
+- `tests/test_game_flow.py`: kiểm tra nguồn từ, phân quyền theo tài khoản, chấm điểm, retry đồng thời, combo, thua/chơi lại, chuyển màn không lặp từ đã đúng, kết thúc chặng và bảo toàn dữ liệu migration.
+- `WordShooterEngineTest.kt`: luật gõ sai giữ chữ/combo, combo20, lần bỏ lỡ thứ 4, tạm dừng/phục hồi, đổi mục tiêu và dấu cách điền sẵn.
+
+Chạy backend tests từ `backend` (database tạm, không thêm fixture vào database ứng dụng):
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+Chạy Kotlin unit tests và build từ `frontend`, với Gradle JVM đúng như mục 3:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug
+```
+
+
+Kiểm tra ngày 21/10/2026: **30 backend tests, 7 Kotlin unit tests và build APK đều thành công**. Kiểm thử trực tiếp trên emulator xác nhận gõ sai giữ chữ/combo; hoàn thành 20 từ đạt combo20; ngắt mạng lúc gửi rồi thử lại chỉ ghi kết quả một lần; màn tiếp không lặp từ đã đúng; tạm dừng, đóng/mở và xoay màn hình giữ trạng thái; lần chạm đáy thứ 4 thua và chơi lại đúng màn; chọn chủ đề/từ đã lưu/từ khó lấy đúng dữ liệu. Đã khôi phục SharedPreferences và hướng màn hình ban đầu, xóa tài khoản/dữ liệu kiểm thử. Trên máy phát triển đã chạy migration 0006 và seed thêm 93 từ còn thiếu, không sửa nội dung từ cũ.

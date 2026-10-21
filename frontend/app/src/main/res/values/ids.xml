@@ -14,4 +14,31 @@
     <item name="input_admin_meaning" type="id" />
     <item name="input_admin_sentence" type="id" />
     <item name="input_admin_translation" type="id" />
+    <item name="game_arena" type="id" />
+    <item name="game_key_a" type="id" />
+    <item name="game_key_b" type="id" />
+    <item name="game_key_c" type="id" />
+    <item name="game_key_d" type="id" />
+    <item name="game_key_e" type="id" />
+    <item name="game_key_f" type="id" />
+    <item name="game_key_g" type="id" />
+    <item name="game_key_h" type="id" />
+    <item name="game_key_i" type="id" />
+    <item name="game_key_j" type="id" />
+    <item name="game_key_k" type="id" />
+    <item name="game_key_l" type="id" />
+    <item name="game_key_m" type="id" />
+    <item name="game_key_n" type="id" />
+    <item name="game_key_o" type="id" />
+    <item name="game_key_p" type="id" />
+    <item name="game_key_q" type="id" />
+    <item name="game_key_r" type="id" />
+    <item name="game_key_s" type="id" />
+    <item name="game_key_t" type="id" />
+    <item name="game_key_u" type="id" />
+    <item name="game_key_v" type="id" />
+    <item name="game_key_w" type="id" />
+    <item name="game_key_x" type="id" />
+    <item name="game_key_y" type="id" />
+    <item name="game_key_z" type="id" />
 </resources>

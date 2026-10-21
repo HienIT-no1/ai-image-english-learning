@@ -26,6 +26,8 @@ class PracticeFragment : ScreenFragment() {
         quizzes.resumeMode?.let { mode ->
             button("Tiếp tục bài Quiz đang làm",Palette.green) { go(R.id.quizFragment,"mode" to mode) }
         }
+        section("Vừa chơi, vừa nhớ")
+        tile("✦","Trò chơi","Bắn chữ • Ngẫu nhiên, theo chủ đề và ôn tập",Palette.orange) { go(R.id.gamesFragment) }
         section("Thử thách Quiz")
         tile("🍎","Nhìn ảnh chọn từ","Ghép hình minh họa với từ tiếng Anh",Palette.green) { go(R.id.quizFragment,"mode" to "image") }
         tile("▦","Nhìn từ chọn ảnh","Chọn hình minh họa đúng với từ",Palette.purple) { go(R.id.quizFragment,"mode" to "word") }

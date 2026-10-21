@@ -58,6 +58,7 @@ open class ScreenFragment : Fragment(R.layout.fragment_screen) {
     protected val words get() = (requireActivity() as MainActivity).words
     protected val collections get() = (requireActivity() as MainActivity).collections
     protected val learning get() = (requireActivity() as MainActivity).learning
+    protected val games get() = (requireActivity() as MainActivity).games
     protected val quizzes get() = (requireActivity() as MainActivity).quizzes
     protected fun go(id: Int, vararg args: Pair<String, Any?>) {
         if (!isAdded || findNavController().currentDestination?.id != destinationId) return

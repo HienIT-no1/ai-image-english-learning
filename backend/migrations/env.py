@@ -6,7 +6,7 @@ import app.models
 
 # Only fully mapped tables in the implemented flows are managed by autogenerate.
 # Existing legacy tables remain managed by the baseline SQL until mapped fully.
-MANAGED_TABLES = {"topics", "vocabulary_topics", "collections", "collection_words", "learning_progress", "learning_events", "quiz_attempts", "quiz_answers"}
+MANAGED_TABLES = {"topics", "vocabulary_topics", "collections", "collection_words", "learning_progress", "learning_events", "quiz_attempts", "quiz_answers", "game_runs", "game_rounds"}
 def include_name(name, type_, parent_names):
     return type_ != "table" or name in MANAGED_TABLES
 

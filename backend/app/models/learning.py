@@ -35,4 +35,4 @@ class LearningEvent(Base):
     created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now())
     __table_args__=(UniqueConstraint("user_id","event_key",name="uq_learning_event_user_key"),
         Index("ix_learning_events_user_date","user_id","created_at"),
-        CheckConstraint("kind IN ('FLASHCARD','QUIZ')",name="learning_events_kind_check"))
+        CheckConstraint("kind IN ('FLASHCARD','QUIZ','GAME')",name="learning_events_kind_check"))

@@ -77,6 +77,15 @@ class LearningStore(private val context: Context) {
     var pendingReview: String?
         get() = prefs.getString("pending_review",null)
         set(value) { prefs.edit().putString("pending_review",value).apply() }
+    var activeGame: String?
+        get() = prefs.getString("active_game",null)
+        set(value) { prefs.edit().putString("active_game",value).apply() }
+    var pendingGameFinish: String?
+        get() = prefs.getString("pending_game_finish",null)
+        set(value) { prefs.edit().putString("pending_game_finish",value).apply() }
+    var localGameState: String?
+        get() = prefs.getString("local_game_state",null)
+        set(value) { prefs.edit().putString("local_game_state",value).apply() }
     var activeQuiz: String?
         get() = prefs.getString("active_quiz",null)
         set(value) { prefs.edit().putString("active_quiz",value).apply() }

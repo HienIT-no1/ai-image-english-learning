@@ -14,6 +14,11 @@ fun <T> Response<T>.requireData(): T {
             if (d is JSONArray) d.getJSONObject(0).optString("msg") else d.toString()
         }.getOrNull()
         val message = when (detail) {
+            "No playable words in this source" -> "Chưa có từ phù hợp để chơi. Hãy lưu thêm từ, ôn tập hoặc chọn nguồn khác."
+            "Game is complete" -> "Bạn đã hoàn thành lượt chơi này. Hãy bắt đầu lượt mới."
+            "Game vocabulary changed; start a new game" -> "Kho từ đã thay đổi. Hãy bắt đầu lượt chơi mới."
+            "Round incomplete" -> "Màn chơi chưa hoàn tất. Hãy tiếp tục xử lý các từ."
+
             "Username already exists" -> "Tên đăng nhập đã tồn tại"
             "Email already exists" -> "Email đã được sử dụng"
             "Invalid username or password" -> "Sai tên đăng nhập hoặc mật khẩu"

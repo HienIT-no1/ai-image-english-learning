@@ -35,6 +35,8 @@ class HomeFragment : ScreenFragment() {
         button("Ôn tập ngay",Palette.purple,goal) { go(R.id.flashcardFragment) }
         section("Từ vựng hôm nay", "Khám phá") { go(R.id.topicsFragment) }
         if (words.words.isNotEmpty()) wordRow(words.words[Calendar.getInstance().get(Calendar.DAY_OF_YEAR) % words.words.size])
+        section("Chơi cùng từ vựng")
+        tile("✦","Trò chơi","Bắn chữ và chinh phục chuỗi combo",Palette.orange) { go(R.id.gamesFragment) }
         section("Một bước nhỏ mỗi ngày")
         tile("✦","Thử thách Quiz","4 cách luyện tập, một mục tiêu ghi nhớ",Palette.green) { go(R.id.practiceFragment) }
     }
@@ -85,7 +87,7 @@ class ProgressFragment : ScreenFragment() {
         stats(store.quizRuns.toString() to "Bài hoàn thành",accuracy to "Độ chính xác")
         section("Trạng thái từ vựng")
         text("${data.needsReview} từ đã lưu cần ôn tập",16,Palette.blue)
-        notice("Tiến độ được lưu trên máy chủ. Mỗi thẻ đã đánh giá hoặc câu Quiz đã gửi tính một lượt học. Ngày học tính theo giờ Việt Nam.")
+        notice("Tiến độ được lưu trên máy chủ. Mỗi thẻ đã đánh giá, câu Quiz hoặc từ đã xử lý trong trò chơi tính một lượt học. Ngày học tính theo giờ Việt Nam.")
         button("Tiếp tục ôn tập",Palette.purple) { go(R.id.flashcardFragment) }
     }
 }
