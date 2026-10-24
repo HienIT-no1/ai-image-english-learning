@@ -4,8 +4,17 @@
  <item name="colorSecondary">@color/purple</item><item name="colorSurface">@color/surface</item>
  <item name="colorOnSurface">@color/text_primary</item><item name="android:windowBackground">@color/background</item>
  <item name="android:fontFamily">sans</item><item name="android:windowLightStatusBar">false</item>
+ <item name="appBackgroundColor">@color/background</item><item name="appElevatedColor">@color/surface_high</item>
  <item name="android:colorAccent">@color/blue</item>
  </style>
  <style name="Theme.EnglishLearningApp" parent="Base.Theme.EnglishLearningApp" />
- <style name="NavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator"><item name="android:color">@color/surface_high</item></style>
+ <style name="Theme.EnglishLearningApp.Light" parent="Theme.Material3.Light.NoActionBar">
+  <item name="colorPrimary">#1B63AC</item><item name="colorOnPrimary">@color/white</item>
+  <item name="colorSecondary">#7044B6</item><item name="colorSurface">#FFFFFF</item>
+  <item name="colorOnSurface">#1C2B43</item><item name="android:windowBackground">#F4F8FF</item>
+  <item name="appBackgroundColor">#F4F8FF</item><item name="appElevatedColor">#E5EEFD</item>
+  <item name="android:fontFamily">sans</item><item name="android:windowLightStatusBar">true</item>
+  <item name="android:colorAccent">#1B63AC</item>
+ </style>
+ <style name="NavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator"><item name="android:color">?attr/appElevatedColor</item></style>
 </resources>

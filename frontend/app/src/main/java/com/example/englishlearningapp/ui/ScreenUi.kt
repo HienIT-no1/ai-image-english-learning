@@ -30,17 +30,25 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 
 object Palette {
-    val background = Color.rgb(25,25,46)
-    val surface = Color.rgb(32,35,56)
-    val elevated = Color.rgb(41,45,76)
-    val line = Color.rgb(53,59,96)
-    val blue = Color.rgb(65,157,222)
-    val purple = Color.rgb(161,109,245)
-    val green = Color.rgb(49,204,137)
-    val orange = Color.rgb(255,184,91)
-    val red = Color.rgb(211,55,75)
-    val white = Color.rgb(246,247,252)
-    val muted = Color.rgb(167,175,201)
+    var light=false
+    val background get()=if(light) Color.rgb(244,248,255) else Color.rgb(25,25,46)
+    val surface get()=if(light) Color.WHITE else Color.rgb(32,35,56)
+    val elevated get()=if(light) Color.rgb(229,238,253) else Color.rgb(41,45,76)
+    val line get()=if(light) Color.rgb(201,213,233) else Color.rgb(53,59,96)
+    val blue get()=if(light) Color.rgb(27,99,172) else Color.rgb(65,157,222)
+    val purple get()=if(light) Color.rgb(112,68,182) else Color.rgb(161,109,245)
+    val green get()=if(light) Color.rgb(18,124,86) else Color.rgb(49,204,137)
+    val orange get()=if(light) Color.rgb(164,86,12) else Color.rgb(255,184,91)
+    val red get()=if(light) Color.rgb(183,40,62) else Color.rgb(211,55,75)
+    // Historical name used by text helpers; this is the foreground text color.
+    val white get()=if(light) Color.rgb(28,43,67) else Color.rgb(246,247,252)
+    val muted get()=if(light) Color.rgb(80,99,126) else Color.rgb(167,175,201)
+    val onAccent=Color.WHITE
+    val heroStart get()=if(light) 0xFFDCEBFC.toInt() else 0xFF243D68.toInt()
+    val heroEnd get()=if(light) 0xFFECE4FA.toInt() else 0xFF38305A.toInt()
+    val skyStart get()=if(light) 0xFFEDF6FF.toInt() else 0xFF101B35.toInt()
+    val skyEnd get()=if(light) 0xFFDDE9FA.toInt() else 0xFF242247.toInt()
+    val gameOverlay get()=if(light) 0xDDEDF6FF.toInt() else 0xBB10172C.toInt()
 }
 
 fun Context.dp(value: Int) = (value * resources.displayMetrics.density).toInt()
@@ -58,6 +66,7 @@ open class ScreenFragment : Fragment(R.layout.fragment_screen) {
     protected val words get() = (requireActivity() as MainActivity).words
     protected val collections get() = (requireActivity() as MainActivity).collections
     protected val learning get() = (requireActivity() as MainActivity).learning
+    protected val notifications get() = (requireActivity() as MainActivity).notifications
     protected val games get() = (requireActivity() as MainActivity).games
     protected val quizzes get() = (requireActivity() as MainActivity).quizzes
     protected fun go(id: Int, vararg args: Pair<String, Any?>) {
@@ -157,7 +166,7 @@ open class ScreenFragment : Fragment(R.layout.fragment_screen) {
         text = label; isAllCaps = false; textSize = 15f; cornerRadius = dp(15)
         insetTop = 0; insetBottom = 0
         backgroundTintList = ColorStateList.valueOf(if (outlined) Palette.elevated else color)
-        setTextColor(if (outlined) color else Palette.white)
+        setTextColor(if (outlined) color else Palette.onAccent)
         if (outlined) { strokeWidth = dp(1); strokeColor = ColorStateList.valueOf(Palette.line) }
         minHeight = dp(54)
         setPadding(dp(16),dp(10),dp(16),dp(10))

@@ -30,6 +30,7 @@ data class UserDto(
     @SerializedName("cefr_level") val cefrLevel: String? = null,
     @SerializedName("reminders_enabled") val remindersEnabled: Boolean = false,
     @SerializedName("onboarding_completed") val onboardingCompleted: Boolean = false,
+    @SerializedName("reminder_minutes") val reminderMinutes: Int = 1200,
     val role: String? = "USER"
 )
 

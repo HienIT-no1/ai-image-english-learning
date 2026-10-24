@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select, func, case
+from sqlalchemy import select, func, case, text, literal
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
@@ -21,15 +21,20 @@ def record_event(db: Session,user_id:int,vocabulary_id:int,event_key,kind:str,co
             raise HTTPException(409,'Review key already used for different data')
         return
     now=datetime.now(timezone.utc)
+    next_interval=case((LearningProgress.review_interval_days<1,1),
+        (LearningProgress.review_interval_days<3,3),(LearningProgress.review_interval_days<7,7),
+        else_=func.least(LearningProgress.review_interval_days*2,30)) if correct else literal(0)
+    next_review=literal(now)+next_interval*text("INTERVAL '1 day'") if correct else literal(now+timedelta(minutes=10))
     status=('MASTERED' if correct else 'LEARNING') if kind=='FLASHCARD' else 'LEARNING'
     next_status=status if kind=='FLASHCARD' else case((LearningProgress.status=='NEW','LEARNING'),else_=LearningProgress.status)
     db.execute(insert(LearningProgress).values(user_id=user_id,vocabulary_id=vocabulary_id,status=status,
-        review_count=1,correct_count=int(correct),incorrect_count=int(not correct),last_reviewed_at=now,updated_at=now)
+        review_count=1,correct_count=int(correct),incorrect_count=int(not correct),last_reviewed_at=now,updated_at=now,review_interval_days=int(correct),
+        next_review_at=now+(timedelta(days=1) if correct else timedelta(minutes=10)))
         .on_conflict_do_update(constraint='learning_progress_user_id_vocabulary_id_key',set_={
             'status':next_status,'review_count':LearningProgress.review_count+1,
             'correct_count':LearningProgress.correct_count+int(correct),
             'incorrect_count':LearningProgress.incorrect_count+int(not correct),
-            'last_reviewed_at':now,'updated_at':now}))
+            'last_reviewed_at':now,'updated_at':now,'review_interval_days':next_interval,'next_review_at':next_review}))
     db.flush()
 
 def study_days(db:Session,user_id:int):
@@ -61,7 +66,8 @@ def summary(db:Session,user:User)->LearningSummary:
     quizzes=db.execute(select(func.count(),func.coalesce(func.sum(QuizAttempt.correct_answers),0),
         func.coalesce(func.sum(QuizAttempt.total_questions),0)).where(QuizAttempt.user_id==user.user_id,
         QuizAttempt.completed_at.is_not(None))).one()
-    return LearningSummary(today=today,daily_goal=user.daily_goal or 10,saved_count=len(saved_ids),
+    from app.repositories.review_repository import due_count
+    return LearningSummary(today=today,due_count=due_count(db,user.user_id),daily_goal=user.daily_goal or 10,saved_count=len(saved_ids),
         mastered_count=len(mastered),needs_review=len(saved_ids-mastered),review_count=sum(p.review_count for p in progresses),
         today_count=days.get(today,0),current_streak=current,longest_streak=max(longest,user.longest_streak or 0),
         quiz_runs=quizzes[0],quiz_correct=quizzes[1],quiz_total=quizzes[2],

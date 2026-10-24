@@ -83,10 +83,10 @@ class WordShooterView(context: Context,val engine: WordShooterEngine) : View(con
             if(clock-lastSaved>=1f) { lastSaved=clock;onChanged?.invoke() }
         }
         val w=width.toFloat();val h=height.toFloat()
-        paint.shader=LinearGradient(0f,0f,0f,h,intArrayOf(0xFF101B35.toInt(),0xFF242247.toInt()),null,Shader.TileMode.CLAMP)
+        paint.shader=LinearGradient(0f,0f,0f,h,intArrayOf(Palette.skyStart,Palette.skyEnd),null,Shader.TileMode.CLAMP)
         canvas.drawRoundRect(0f,0f,w,h,d(18f),d(18f),paint);paint.shader=null
         for(i in 0..33) {
-            paint.color=if(i%3==0) 0xFF8178B5.toInt() else 0xFF485274.toInt()
+            paint.color=if(Palette.light) Palette.line else if(i%3==0) 0xFF8178B5.toInt() else 0xFF485274.toInt()
             canvas.drawCircle(w*((i*37%97)/97f),h*((i*19%73)/100f),d(if(i%3==0) 1.4f else 0.8f),paint)
         }
         val bottom=h-d(60f)
@@ -103,7 +103,7 @@ class WordShooterView(context: Context,val engine: WordShooterEngine) : View(con
             val rect=RectF(x+shake,y,x+cardWidth+shake,y+cardHeight)
             boxes[item.index]=rect
             val selected=engine.state.targetIndex==item.index
-            paint.style=Paint.Style.FILL;paint.color=if(selected) 0xFF29395A.toInt() else 0xFF232B49.toInt()
+            paint.style=Paint.Style.FILL;paint.color=if(selected) Palette.elevated else Palette.surface
             canvas.drawRoundRect(rect,d(12f),d(12f),paint)
             paint.style=Paint.Style.STROKE;paint.strokeWidth=d(if(selected) 2f else 1f)
             paint.color=if(now<flashUntil && item.index==flashIndex) Palette.red else if(selected) Palette.blue else Palette.line
@@ -137,7 +137,7 @@ class WordShooterView(context: Context,val engine: WordShooterEngine) : View(con
                 paint.alpha=80;canvas.drawLine(x,y,x-(bullet.x-w/2)*0.09f,y+d(24f),paint);paint.alpha=255
             }
             canvas.drawCircle(x,y,d(11f),paint)
-            label(canvas,bullet.letter.toString(),x,y+d(5f),13f,Palette.white,Paint.Align.CENTER)
+            label(canvas,bullet.letter.toString(),x,y+d(5f),13f,Palette.onAccent,Paint.Align.CENTER)
         }
         bursts.removeAll { now-it.start>700 }
         bursts.forEach { burst ->
@@ -151,7 +151,7 @@ class WordShooterView(context: Context,val engine: WordShooterEngine) : View(con
         }
         if(now<messageUntil) label(canvas,message,w/2,d(24f),if(message.startsWith("COMBO")) 22f else 13f,if(message.startsWith("COMBO")) glow else Palette.orange,Paint.Align.CENTER)
         if(engine.paused && !engine.ended) {
-            paint.color=0xBB10172C.toInt();canvas.drawRoundRect(0f,0f,w,h,d(18f),d(18f),paint)
+            paint.color=Palette.gameOverlay;canvas.drawRoundRect(0f,0f,w,h,d(18f),d(18f),paint)
             label(canvas,"SẴN SÀNG BẮN CHỮ?",w/2,h/2-d(8f),18f,Palette.white,Paint.Align.CENTER)
             label(canvas,"Bấm Bắt đầu / Tiếp tục ở phía trên",w/2,h/2+d(20f),12f,Palette.muted,Paint.Align.CENTER)
         }

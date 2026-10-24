@@ -15,10 +15,13 @@ class LearningProgress(Base):
     correct_count: Mapped[int]=mapped_column(Integer,server_default=text("0"))
     incorrect_count: Mapped[int]=mapped_column(Integer,server_default=text("0"))
     last_reviewed_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True))
+    review_interval_days: Mapped[int]=mapped_column(Integer,server_default=text("0"))
     next_review_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),server_default=func.now())
     updated_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),server_default=func.now())
-    __table_args__=(UniqueConstraint("user_id","vocabulary_id",name="learning_progress_user_id_vocabulary_id_key"),
+    __table_args__=(Index("ix_learning_progress_user_due","user_id","next_review_at"),
+        CheckConstraint("review_interval_days BETWEEN 0 AND 30",name="learning_progress_interval_check"),
+        UniqueConstraint("user_id","vocabulary_id",name="learning_progress_user_id_vocabulary_id_key"),
         CheckConstraint("status IN ('NEW','LEARNING','REVIEWING','MASTERED')",name="learning_progress_status_check"),
         CheckConstraint("review_count >= 0",name="learning_progress_review_count_check"),
         CheckConstraint("correct_count >= 0",name="learning_progress_correct_count_check"),

@@ -1,6 +1,14 @@
 package com.example.englishlearningapp
 
 import android.os.Bundle
+import android.content.Intent
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.view.WindowCompat
+import com.example.englishlearningapp.ui.Palette
+import com.example.englishlearningapp.data.local.AppAppearance
+import com.example.englishlearningapp.data.repository.NotificationRepository
+import com.example.englishlearningapp.notifications.ReminderScheduler
+import com.example.englishlearningapp.notifications.ReminderNotifier
 import android.speech.tts.TextToSpeech
 import android.view.View
 import android.widget.Toast
@@ -40,6 +48,9 @@ class MainActivity : AppCompatActivity() {
         private set
     lateinit var games: GameRepository
         private set
+    lateinit var notifications: NotificationRepository
+        private set
+    private var themeDraft: Bundle?=null
     lateinit var admin: AdminRepository
         private set
     private var tts: TextToSpeech? = null
@@ -49,6 +60,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         store = LearningStore(this)
+        Palette.light=AppAppearance(this).light
+        setTheme(if(Palette.light) R.style.Theme_EnglishLearningApp_Light else R.style.Theme_EnglishLearningApp)
         super.onCreate(savedInstanceState)
         val api = RetrofitClient.create(store) { rejectedToken ->
             runOnUiThread {
@@ -66,9 +79,14 @@ class MainActivity : AppCompatActivity() {
         learning = LearningRepository(api,store)
         quizzes = QuizRepository(api,store,words,learning)
         games = GameRepository(api,store,learning)
+        notifications = NotificationRepository(api,store,words)
         auth = AuthRepository(api,store) { collections.reset(); learning.reset() }
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
+        WindowCompat.getInsetsController(window,window.decorView).apply {
+            isAppearanceLightStatusBars=Palette.light;isAppearanceLightNavigationBars=Palette.light
+        }
+        ReminderScheduler.sync(this)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
             view.setPadding(bars.left,bars.top,bars.right,bars.bottom); insets
@@ -95,6 +113,10 @@ class MainActivity : AppCompatActivity() {
         // A restored navigation stack also passes through the session check before showing account data.
         if (savedInstanceState != null) {
             val resume=Bundle().apply {
+                val draft=savedInstanceState.getBundle("themeDraft")
+                if(draft!=null && savedInstanceState.getLong("themeUser",0)==store.userId) {
+                    putLong("resumeSettingsUser",store.userId ?: 0L);putBundle("settingsDraft",draft)
+                }
                 if (nav.currentDestination?.id==R.id.wordShooterFragment && games.canResume) {
                     putLong("resumeGameUser",store.userId ?: 0L)
                 }
@@ -110,6 +132,44 @@ class MainActivity : AppCompatActivity() {
         quizzes.syncPending().getOrThrow()
         games.syncPending().getOrThrow()
         learning.load().getOrThrow()
+        notifications.syncPending()
+    }
+    fun changeTheme(light: Boolean,draft: Bundle) {
+        if(AppAppearance(this).light==light) return
+        themeDraft=draft
+        AppAppearance(this).light=light
+        recreate()
+    }
+    override fun onSaveInstanceState(state: Bundle) {
+        val current=(supportFragmentManager.findFragmentById(R.id.nav_host) as? NavHostFragment)
+            ?.childFragmentManager?.primaryNavigationFragment
+        val draft=themeDraft ?: (current as? com.example.englishlearningapp.ui.SettingsFragment)?.snapshot()
+        if(draft!=null) { state.putBundle("themeDraft",draft);state.putLong("themeUser",store.userId ?: 0L) }
+        super.onSaveInstanceState(state)
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent);setIntent(intent)
+        if(intent.hasExtra("notification_user")) {
+            nav.navigate(R.id.sessionFragment,null,NavOptions.Builder().setPopUpTo(R.id.nav_graph,true).build())
+        }
+    }
+    fun openPendingNotification(): Boolean {
+        val user=intent.getLongExtra("notification_user",0L)
+        if(user<=0 || !store.signedIn || (!store.onboardingCompleted && !store.isAdmin)) return false
+        val id=intent.getLongExtra("notification_id",0L)
+        val date=intent.getStringExtra("notification_date")
+        intent.removeExtra("notification_user");intent.removeExtra("notification_id");intent.removeExtra("notification_date")
+        if(store.userId!=user) return false
+        NotificationManagerCompat.from(this).cancel(ReminderNotifier.ID)
+        NotificationManagerCompat.from(this).cancel(ReminderNotifier.ID+1)
+        if(id>0) lifecycleScope.launch { notifications.read(id) }
+        else if(date!=null) lifecycleScope.launch {
+            notifications.inbox().onSuccess { page ->
+                page.items.firstOrNull { it.occurrenceDate==date }?.let { notifications.read(it.notificationId) }
+            }
+        }
+        nav.navigate(R.id.dueReviewFragment,null,NavOptions.Builder().setLaunchSingleTop(true).build())
+        return true
     }
     fun openLogin() {
         if (nav.currentDestination?.id != R.id.loginFragment) {
@@ -119,6 +179,7 @@ class MainActivity : AppCompatActivity() {
     fun logout() { auth.logout(); openLogin() }
     override fun onResume() {
         super.onResume()
+        ReminderScheduler.sync(this)
         if (!store.signedIn || store.token.isNullOrBlank() || nav.currentDestination?.id==R.id.sessionFragment || checkingSession) return
         checkingSession=true
         lifecycleScope.launch {

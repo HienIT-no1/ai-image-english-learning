@@ -5,7 +5,8 @@ data class ProfileUpdateRequest(
     @SerializedName("full_name") val fullName: String,
     @SerializedName("cefr_level") val cefrLevel: String,
     @SerializedName("daily_goal") val dailyGoal: Int,
-    @SerializedName("reminders_enabled") val remindersEnabled: Boolean
+    @SerializedName("reminders_enabled") val remindersEnabled: Boolean,
+    @SerializedName("reminder_minutes") val reminderMinutes: Int = 1200
 )
 data class ReviewRequest(
     @SerializedName("vocabulary_id") val vocabularyId: Long,
@@ -20,6 +21,7 @@ data class WordProgressDto(
 data class StudyDayDto(val date: String,val count: Int)
 data class LearningSummaryDto(
     val today: String,
+    @SerializedName("due_count") val dueCount: Int = 0,
     @SerializedName("daily_goal") val dailyGoal: Int,
     @SerializedName("saved_count") val savedCount: Int,
     @SerializedName("mastered_count") val masteredCount: Int,

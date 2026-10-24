@@ -41,4 +41,10 @@
     <item name="game_key_x" type="id" />
     <item name="game_key_y" type="id" />
     <item name="game_key_z" type="id" />
+    <item name="theme_light" type="id" />
+    <item name="theme_dark" type="id" />
+    <item name="reminder_toggle" type="id" />
+    <item name="reminder_time" type="id" />
+    <item name="reminder_preview" type="id" />
+    <item name="settings_save" type="id" />
 </resources>

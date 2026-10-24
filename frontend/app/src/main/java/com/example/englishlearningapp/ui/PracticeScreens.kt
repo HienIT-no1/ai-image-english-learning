@@ -18,6 +18,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 class PracticeFragment : ScreenFragment() {
     override fun render() {
         header("MỖI NGÀY MỘT CHÚT", "Luyện tập & ghi nhớ", "Kiến thức ở lại khi bạn dành thời gian ôn luyện.")
+        button("Ôn tập đến hạn • ${store.dueCount} từ",Palette.purple,outlined=true) { go(R.id.dueReviewFragment) }
         val hero=column(color=Palette.elevated,padding=22)
         text("▣",44,Palette.purple,parent=hero)
         text("Lật thẻ, mở trí nhớ",25,bold=true,parent=hero)

@@ -21,4 +21,6 @@
  <fragment android:id="@+id/adminListFragment" android:name="com.example.englishlearningapp.ui.AdminListFragment" android:label="adminList" />
  <fragment android:id="@+id/gamesFragment" android:name="com.example.englishlearningapp.ui.GamesFragment" android:label="games" />
  <fragment android:id="@+id/wordShooterFragment" android:name="com.example.englishlearningapp.ui.WordShooterFragment" android:label="wordShooter" />
+ <fragment android:id="@+id/notificationsFragment" android:name="com.example.englishlearningapp.ui.NotificationsFragment" android:label="notifications" />
+ <fragment android:id="@+id/dueReviewFragment" android:name="com.example.englishlearningapp.ui.DueReviewFragment" android:label="dueReview" />
 </navigation>

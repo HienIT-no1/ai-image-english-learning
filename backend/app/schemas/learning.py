@@ -15,6 +15,8 @@ class WordProgress(BaseModel):
     correct_count: int
     incorrect_count: int
     last_reviewed_at: datetime | None
+    next_review_at: datetime | None
+    review_interval_days: int
 
 class StudyDay(BaseModel):
     date: date
@@ -22,6 +24,7 @@ class StudyDay(BaseModel):
 
 class LearningSummary(BaseModel):
     today: date
+    due_count: int
     daily_goal: int
     saved_count: int
     mastered_count: int
