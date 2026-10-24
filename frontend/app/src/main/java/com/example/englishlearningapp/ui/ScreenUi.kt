@@ -60,6 +60,7 @@ open class ScreenFragment : Fragment(R.layout.fragment_screen) {
     protected val learning get() = (requireActivity() as MainActivity).learning
     protected val games get() = (requireActivity() as MainActivity).games
     protected val quizzes get() = (requireActivity() as MainActivity).quizzes
+    protected val ai get() = (requireActivity() as MainActivity).ai
     protected fun go(id: Int, vararg args: Pair<String, Any?>) {
         if (!isAdded || findNavController().currentDestination?.id != destinationId) return
         hideKeyboard()

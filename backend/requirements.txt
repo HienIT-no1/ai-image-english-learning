@@ -5,3 +5,6 @@ pydantic-settings
 pwdlib[argon2]
 python-jose[cryptography]
 alembic>=1.13,<2
+ultralytics
+python-multipart
+cloudinary

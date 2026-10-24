@@ -9,6 +9,9 @@ import com.example.englishlearningapp.data.model.VocabularyDto
 import com.example.englishlearningapp.data.model.TopicDto
 import com.example.englishlearningapp.data.model.CollectionDto
 import com.example.englishlearningapp.data.model.*
+import okhttp3.MultipartBody
+import retrofit2.http.Multipart
+import retrofit2.http.Part
 import retrofit2.http.Query
 import retrofit2.http.Header
 import retrofit2.http.PATCH
@@ -22,6 +25,20 @@ import retrofit2.http.Path
 
 
 interface ApiService {
+    @Multipart
+    @POST("ai/detect/capture")
+    suspend fun detectCapture(
+        @Part file: MultipartBody.Part,
+        @Query("conf") conf: Float = 0.35f
+    ): Response<CaptureDetectResponseDto>
+
+    @Multipart
+    @POST("ai/detect/realtime")
+    suspend fun detectRealtime(
+        @Part file: MultipartBody.Part,
+        @Query("conf") conf: Float = 0.35f
+    ): Response<RealtimeDetectResponseDto>
+
     @POST("games/word-shooter")
     suspend fun startGame(@Body body: GameStartRequest,@Header("Authorization") auth: String): Response<GameRunDto>
     @POST("games/word-shooter/{run}/rounds/{round}/finish")

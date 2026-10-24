@@ -53,3 +53,30 @@ def get_current_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "ADMIN":
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
+
+
+oauth2_optional_scheme = OAuth2PasswordBearer(
+    tokenUrl="/auth/login",
+    auto_error=False
+)
+
+
+def get_optional_current_user(
+    token: str | None = Depends(oauth2_optional_scheme),
+    db: Session = Depends(get_db)
+) -> User | None:
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM]
+        )
+        user_id = payload.get("sub")
+        if user_id is None:
+            return None
+        return db.get(User, int(user_id))
+    except Exception:
+        return None
+

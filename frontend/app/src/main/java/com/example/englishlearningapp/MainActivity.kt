@@ -13,6 +13,7 @@ import androidx.navigation.NavOptions
 import androidx.navigation.fragment.NavHostFragment
 import com.example.englishlearningapp.data.local.LearningStore
 import com.example.englishlearningapp.data.remote.RetrofitClient
+import com.example.englishlearningapp.data.repository.AiRepository
 import com.example.englishlearningapp.data.repository.AdminRepository
 import com.example.englishlearningapp.data.repository.AuthRepository
 import com.example.englishlearningapp.data.repository.CollectionRepository
@@ -42,6 +43,8 @@ class MainActivity : AppCompatActivity() {
         private set
     lateinit var admin: AdminRepository
         private set
+    lateinit var ai: AiRepository
+        private set
     private var tts: TextToSpeech? = null
     private var speechReady = false
     private var checkingSession = false
@@ -61,6 +64,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         admin = AdminRepository(api,store)
+        ai = AiRepository(api)
         words = WordRepository(api)
         collections = CollectionRepository(api,store,words)
         learning = LearningRepository(api,store)
