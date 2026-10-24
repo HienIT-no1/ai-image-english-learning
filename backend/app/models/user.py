@@ -74,9 +74,12 @@ class User(Base):
     reminders_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
+    reminder_minutes: Mapped[int] = mapped_column(Integer,nullable=False,server_default="1200")
+
     role: Mapped[str] = mapped_column(String(10), nullable=False, server_default="USER")
 
     __table_args__ = (
+        CheckConstraint("reminder_minutes BETWEEN 0 AND 1439",name="users_reminder_minutes_check"),
         CheckConstraint("role IN ('USER','ADMIN')", name="users_role_check"),
         CheckConstraint(
             "english_level IN ('BEGINNER', 'INTERMEDIATE', 'ADVANCED')",

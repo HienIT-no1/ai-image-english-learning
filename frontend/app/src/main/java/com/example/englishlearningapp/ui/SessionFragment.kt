@@ -7,6 +7,7 @@ import androidx.navigation.NavOptions
 import androidx.navigation.fragment.findNavController
 import com.example.englishlearningapp.R
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
 
 class SessionFragment : ScreenFragment() {
     private var checking = true
@@ -16,23 +17,38 @@ class SessionFragment : ScreenFragment() {
     }
     private fun check() {
         checking=true; failure=null; refresh()
-        viewLifecycleOwner.lifecycleScope.launch {
-            val result=auth.restore()
+        val activity=requireActivity() as com.example.englishlearningapp.MainActivity
+        val owner=viewLifecycleOwner
+        owner.lifecycleScope.launch {
+            val result=activity.auth.restore()
+            ensureActive()
+            if(!isAdded || owner.lifecycle.currentState==androidx.lifecycle.Lifecycle.State.DESTROYED) return@launch
             result.onSuccess { user ->
                 if (user==null) { auth.logout(); enter(R.id.loginFragment) }
                 else {
-                    val loaded=(requireActivity() as com.example.englishlearningapp.MainActivity).loadAccountData()
+                    val loaded=activity.loadAccountData()
+                    ensureActive()
+                    if(!isAdded || owner.lifecycle.currentState==androidx.lifecycle.Lifecycle.State.DESTROYED) return@launch
                     loaded.onSuccess {
-                        words.loadFromApi()
+                        activity.words.loadFromApi()
+                        ensureActive()
+                        if(!isAdded || owner.lifecycle.currentState==androidx.lifecycle.Lifecycle.State.DESTROYED) return@launch
+                        val controller=findNavController()
+                        val settingsUser=arguments?.getLong("resumeSettingsUser",0L) ?: 0L
                         val resumeUser=arguments?.getLong("resumeGameUser",0L) ?: 0L
-                        if (resumeUser>0 && store.userId==resumeUser && games.canResume && (store.onboardingCompleted || store.isAdmin)) {
+                        if(settingsUser>0 && store.userId==settingsUser && (store.onboardingCompleted || store.isAdmin)) {
+                            enter(R.id.homeFragment)
+                            controller.navigate(R.id.profileFragment)
+                            controller.navigate(R.id.settingsFragment,arguments?.getBundle("settingsDraft"))
+                        } else if (resumeUser>0 && store.userId==resumeUser && games.canResume && (store.onboardingCompleted || store.isAdmin)) {
                             // Restore only this validated user's game, after the normal account check.
                             enter(R.id.homeFragment)
-                            findNavController().navigate(R.id.gamesFragment)
-                            findNavController().navigate(R.id.wordShooterFragment)
+                            controller.navigate(R.id.gamesFragment)
+                            controller.navigate(R.id.wordShooterFragment)
                         } else {
                             enter(if(store.isAdmin) R.id.adminFragment else if(store.onboardingCompleted) R.id.homeFragment else R.id.onboardingFragment)
                         }
+                        activity.openPendingNotification()
                     }.onFailure { failure=it.message; checking=false; refresh() }
                 }
             }.onFailure { failure=it.message; checking=false; refresh() }

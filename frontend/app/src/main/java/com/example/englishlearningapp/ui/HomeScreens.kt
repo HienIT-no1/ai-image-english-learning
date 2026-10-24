@@ -19,7 +19,7 @@ class HomeFragment : ScreenFragment() {
         header("XIN CHÀO, ${store.name}", "Hôm nay, bạn sẽ\nkhám phá điều gì?", "Biến thế giới quanh bạn thành bài học tiếng Anh.")
         val hero = column(color = Palette.elevated, padding = 22)
         hero.background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
-            intArrayOf(0xFF243D68.toInt(),Palette.elevated,0xFF38305A.toInt())).apply { cornerRadius=dp(24).toFloat() }
+            intArrayOf(Palette.heroStart,Palette.elevated,Palette.heroEnd)).apply { cornerRadius=dp(24).toFloat() }
         text("✦  HỌC TỪ CUỘC SỐNG",11,Palette.blue,true,hero)
         text("Nhìn thấy.\nGhi nhớ.\nSử dụng.",28,bold=true,parent=hero)
         text("🍎   📚   🌿",42,parent=hero,center=true)
@@ -33,6 +33,8 @@ class HomeFragment : ScreenFragment() {
         text("${store.todayCount} / ${store.goal} lượt luyện tập",13,Palette.muted,parent=goal)
         progress(store.todayCount,store.goal,goal,Palette.green)
         button("Ôn tập ngay",Palette.purple,goal) { go(R.id.flashcardFragment) }
+        section("Nhắc ôn tập","Thông báo") { go(R.id.notificationsFragment) }
+        tile("↻","Ôn tập đến hạn","${store.dueCount} từ cần ôn theo lịch",Palette.purple) { go(R.id.dueReviewFragment) }
         section("Từ vựng hôm nay", "Khám phá") { go(R.id.topicsFragment) }
         if (words.words.isNotEmpty()) wordRow(words.words[Calendar.getInstance().get(Calendar.DAY_OF_YEAR) % words.words.size])
         section("Chơi cùng từ vựng")

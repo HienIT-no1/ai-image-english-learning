@@ -283,7 +283,7 @@ class WordShooterFragment : Fragment() {
         parent.addView(this,LinearLayout.LayoutParams(-1,-2))
     }
     private fun action(value: String,parent: LinearLayout,color: Int=Palette.blue,click: () -> Unit): MaterialButton=MaterialButton(requireContext()).apply {
-        text=value;isAllCaps=false;cornerRadius=dp(12);textSize=14f;setTextColor(Palette.white)
+        text=value;isAllCaps=false;cornerRadius=dp(12);textSize=14f;setTextColor(if(color==Palette.elevated) Palette.white else Palette.onAccent)
         backgroundTintList=ColorStateList.valueOf(color);minHeight=dp(48)
         parent.addView(this,LinearLayout.LayoutParams(-1,-2));setOnClickListener { click() }
     }

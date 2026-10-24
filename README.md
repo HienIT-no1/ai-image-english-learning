@@ -16,7 +16,8 @@
 | Trang chủ, tiến độ, lượt học, mục tiêu, streak | Lấy số liệu từ API/database | Tổng hợp dữ liệu của tài khoản |
 | Chụp/chọn ảnh, nhận diện và lịch sử nhận diện | Giao diện mẫu; chưa nối YOLO | Cần triển khai backend nhận ảnh/nhận diện |
 | Phân quyền và quản trị | Đã nối Android → API có kiểm tra ADMIN → database | Xem người dùng; thêm/sửa chủ đề và từ; xóa chủ đề trống |
-| Nhắc học, lịch ôn SRS | Chưa triển khai | Mới lưu tùy chọn nhắc học; chưa lên lịch thông báo |
+| Nhắc học, lịch ôn và thông báo | Đã nối Android → API → database | Giờ nhắc, WorkManager, hộp thông báo, lịch ôn và từ đến hạn |
+| Màu giao diện tối/sáng | Đổi ngay và nhớ trên thiết bị | Cài đặt cục bộ, dùng cả ở màn đăng nhập |
 
 Quiz hình ảnh hiện dùng **biểu tượng và nghĩa tiếng Việt**, chưa dùng ảnh thật từ AI. Quiz nghe dùng Text-to-Speech trên thiết bị. Bài tổng hợp yêu cầu 8 câu; nếu kho từ có nghĩa chỉ có ít hơn 8 từ, server trả số câu thực tế. Trình độ và mục tiêu đã được lưu; Quiz hiện chưa tự điều chỉnh độ khó theo trình độ. Trò Bắn chữ ngẫu nhiên lọc cấp độ từ theo CEFR; tốc độ rơi tăng theo màn và có giới hạn.
 
@@ -136,7 +137,7 @@ Kiểm tra phiên bản:
 .\.venv\Scripts\python.exe -m alembic current
 ```
 
-Phiên bản hiện tại: `0006_word_shooter`. Lệnh upgrade chỉ áp dụng các bước còn thiếu; chạy lại không tạo trùng bảng/dữ liệu. Nếu database mới chưa có từ để học:
+Phiên bản hiện tại: `0007_reminders`. Lệnh upgrade chỉ áp dụng các bước còn thiếu; chạy lại không tạo trùng bảng/dữ liệu. Nếu database mới chưa có từ để học:
 
 ```powershell
 .\.venv\Scripts\python.exe seed_demo.py
@@ -247,7 +248,7 @@ Mỗi thẻ có một `event_key` UUID. Chỉ chuyển sang thẻ tiếp theo kh
 - `learning_events` lưu từng lượt, dùng cho thống kê ngày và streak.
 - Một thẻ đã đánh giá hoặc một câu Quiz đã gửi tính **một lượt**, kể cả trả lời sai. Lưu từ, lật thẻ và nghe phát âm không tính lượt.
 - Ngày học tính theo **Asia/Ho_Chi_Minh (UTC+7)**. Streak còn giữ chuỗi đến hôm qua khi hôm nay chưa học; nếu bỏ trọn một ngày thì chuỗi hiện tại về 0.
-- “Cần ôn tập” là từ đã lưu chưa có trạng thái `MASTERED`; hiện chưa phải lịch ôn SRS.
+- “Cần ôn tập” là từ đã lưu chưa có trạng thái `MASTERED`. Lịch ôn đến hạn dùng `due_count` và `next_review_at`, xem mục 13.
 - Tổng lượt và Quiz cũ trong PostgreSQL vẫn được giữ. Biểu đồ ngày dựa vào `learning_events` mới; migration không tự đoán ngày của các lượt cũ.
 
 ### Quiz và tiếp tục bài
@@ -270,6 +271,7 @@ Thoát/đóng app giữa bài → **Luyện tập → Tiếp tục bài Quiz đa
 | `0004_learning` | Thêm CEFR/onboarding/tùy chọn nhắc học, nhật ký lượt học, khóa phiên và đề Quiz, khóa câu/đáp án |
 | `0005_admin_roles` | Thêm role USER/ADMIN, tất cả tài khoản cũ mặc định USER; không tự cấp Admin |
 | `0006_word_shooter` | Thêm lượt chơi, màn chơi; cho phép learning event loại GAME; giữ dữ liệu cũ |
+| `0007_reminders` | Thêm giờ nhắc, khoảng ôn, index từ đến hạn và bảng notifications; bổ sung lịch cho tiến độ cũ |
 
 Bạn cùng nhóm kéo code → cài requirements → cấu hình `.env` → `alembic upgrade head`. Database mới có thể seed; không cần gửi/import lại SQL mỗi lần đổi bảng. Migration không thay thế việc sao lưu dữ liệu.
 
@@ -287,7 +289,7 @@ Khi thay model/schema, tạo revision mới và đọc kỹ trước khi áp d�
 .\.venv\Scripts\python.exe -m alembic check
 ```
 
-Autogenerate hiện quản lý `topics`, `vocabulary_topics`, `collections`, `collection_words`, `learning_progress`, `learning_events`, `quiz_attempts`, `quiz_answers`, `game_runs`, `game_rounds`. Một số model legacy chưa mô tả toàn bộ schema, nên các bảng khác (gồm `users`) cần migration thủ công hoặc hoàn thiện mapping trước khi đưa vào `MANAGED_TABLES` trong `migrations/env.py`.
+Autogenerate hiện quản lý `topics`, `vocabulary_topics`, `collections`, `collection_words`, `learning_progress`, `learning_events`, `quiz_attempts`, `quiz_answers`, `game_runs`, `game_rounds`, `notifications`. Một số model legacy chưa mô tả toàn bộ schema, nên các bảng khác (gồm `users`) cần migration thủ công hoặc hoàn thiện mapping trước khi đưa vào `MANAGED_TABLES` trong `migrations/env.py`.
 
 Baseline kiểm tra đủ bảng/cột, không xác thực mọi kiểu/constraint của schema tự sửa. Schema legacy chỉ có một phần bị từ chối; cần sửa/import đủ schema trước. Migration cần kết nối PostgreSQL, chưa hỗ trợ xuất SQL offline. Downgrade các revision thêm bảng/cột có thể xóa dữ liệu của phần đó; baseline từ chối downgrade để bảo vệ dữ liệu đã tiếp nhận.
 
@@ -375,7 +377,7 @@ Kiểm tra trên máy ngày 08/10/2026: 18 test backend đã qua, build Android 
 
 1. Nhận ảnh → backend gọi YOLO → ánh xạ nhãn thành từ thật → lưu kết quả/lịch sử và thêm từ vào bộ sưu tập.
 2. Mở rộng quản trị nghĩa/ví dụ phụ, ảnh minh họa thật và các thao tác quản lý người dùng theo nghiệp vụ.
-3. Lịch ôn SRS và nhắc học thực tế; sau đó mở rộng thống kê/lịch sử bài Quiz và danh sách bài chưa hoàn thành ở nhiều thiết bị.
+3. Mở rộng thống kê/lịch sử bài Quiz và danh sách bài chưa hoàn thành ở nhiều thiết bị; lịch ôn và nhắc học cơ bản đã có ở mục 13.
 
 
 ## 11. Phân quyền USER/ADMIN và tạo tài khoản Admin
@@ -559,3 +561,90 @@ Chạy Kotlin unit tests và build từ `frontend`, với Gradle JVM đúng như
 
 
 Kiểm tra ngày 21/10/2026: **30 backend tests, 7 Kotlin unit tests và build APK đều thành công**. Kiểm thử trực tiếp trên emulator xác nhận gõ sai giữ chữ/combo; hoàn thành 20 từ đạt combo20; ngắt mạng lúc gửi rồi thử lại chỉ ghi kết quả một lần; màn tiếp không lặp từ đã đúng; tạm dừng, đóng/mở và xoay màn hình giữ trạng thái; lần chạm đáy thứ 4 thua và chơi lại đúng màn; chọn chủ đề/từ đã lưu/từ khó lấy đúng dữ liệu. Đã khôi phục SharedPreferences và hướng màn hình ban đầu, xóa tài khoản/dữ liệu kiểm thử. Trên máy phát triển đã chạy migration 0006 và seed thêm 93 từ còn thiếu, không sửa nội dung từ cũ.
+
+
+## 13. Nhắc ôn tập, thông báo và giao diện sáng/tối
+
+### Cách dùng trong app
+
+**Hồ sơ → Cài đặt học tập**:
+
+1. Trong Màu giao diện, bấm **Sáng • Trắng xanh dịu** hoặc **Tối • Xanh tím**. Màu đổi ngay, gồm nền, chữ, thẻ, nút, hộp thoại, thanh điều hướng và trò Bắn chữ. Nội dung hồ sơ đang nhập được giữ khi đổi màu. Màu được nhớ trên điện thoại, gồm màn đăng nhập và các tài khoản dùng chung máy.
+2. Bật **Nhắc ôn tập hằng ngày**, cho phép quyền thông báo nếu Android hỏi.
+3. Bấm **Giờ nhắc**, chọn giờ theo đồng hồ điện thoại. Mặc định 20:00.
+4. Bấm **Lưu thay đổi** để lưu bật/tắt và giờ nhắc lên PostgreSQL. Tắt nhắc hoặc đăng xuất sẽ dừng lịch của tài khoản đang dùng. Khi đăng nhập lại, app lấy thiết lập đã lưu và lập lịch lại nếu có quyền.
+5. Bấm **Gửi thử thông báo**, kéo thanh thông báo xuống và bấm thông báo. Đây là bản thử, không tạo lịch sử nhắc giả và không ảnh hưởng lượt nhắc hằng ngày.
+
+Nếu thông báo bị chặn, app hiện trạng thái rõ ràng cùng các nút cấp quyền/mở cài đặt thông báo của Android. Bật nút trong app không tự vượt quyền hệ thống. Android 13 trở lên cần quyền POST_NOTIFICATIONS; kênh Nhắc ôn tập cũng phải được bật.
+
+**Trang chủ → Nhắc ôn tập → Thông báo**, hoặc **Hồ sơ → Thông báo** để xem hộp thông báo. Có trạng thái chưa đọc, bấm mở ôn tập, đánh dấu tất cả đã đọc và tải các thông báo cũ hơn.
+
+**Trang chủ/Luyện tập → Ôn tập đến hạn** để xem và học bộ thẻ cần ôn. Bấm lời nhắc trên thanh thông báo cũng mở màn này sau khi kiểm tra đăng nhập. Thông báo của tài khoản A không mở dữ liệu của A khi máy đang đăng nhập B.
+
+### Lịch ôn được tính thế nào?
+
+- Từ đã lưu nhưng chưa từng học được đưa vào danh sách đến hạn.
+- Mỗi lần trả lời đúng trong Flashcard, Quiz hoặc trò chơi, lịch tăng theo **1 → 3 → 7 → 14 → 28 → 30 ngày**, rồi tối đa 30 ngày.
+- Chưa nhớ/trả lời sai/từ chạm đáy: khoảng ôn về 0, hẹn ôn lại sau **10 phút**.
+- Retry cùng một event/màn không tính lại lịch. Lịch được ghi cùng giao dịch cập nhật tiến độ.
+- Đây là thuật toán giãn cách cơ bản; không tự đổi trạng thái MASTERED đã tự đánh giá bằng Flashcard. Một từ đã nhớ vẫn có thể đến lịch ôn để duy trì trí nhớ.
+- Migration bổ sung lịch cho tiến độ cũ chưa có next_review_at: MASTERED dùng lần học gần nhất +7 ngày; các từ khác dùng lần học gần nhất hoặc thời điểm migration. Các số đếm/lịch sử cũ được giữ.
+
+`learning_progress.next_review_at` lưu thời điểm UTC; `review_interval_days` lưu khoảng ôn. Backend chọn từ đến hạn theo tài khoản; Android không tự đoán từ cần học. Mỗi lượt tải tối đa 100 từ để ôn, có thể mở lại danh sách để tải phần còn lại.
+
+### Lời nhắc chạy ở đâu?
+
+Lịch chạy bằng **Android WorkManager**, mỗi ngày theo giờ đã chọn; không cần giữ màn app mở. Đổi giờ, đổi múi giờ hoặc khởi động lại điện thoại sẽ được xử lý bằng lịch bền vững/receiver. Android có thể trì hoãn vì tiết kiệm pin hoặc giới hạn chạy nền, nên đây không phải báo thức chính xác đến từng giây. Sau khi Force stop ứng dụng trong cài đặt Android, cần mở lại app để công việc nền tiếp tục. Tham khảo [WorkManager](https://developer.android.com/jetpack/androidx/releases/work) và [quyền thông báo Android](https://developer.android.com/develop/ui/views/notifications/notification-permission).
+
+Khi đến lượt nhắc:
+
+```text
+WorkManager trên Android
+  → kiểm tra đúng tài khoản, đã bật nhắc và có quyền thông báo
+  → nếu online: lấy hồ sơ/tiến độ mới từ API
+  → không làm phiền khi đã đạt mục tiêu và không còn từ đến hạn
+  → POST /notifications/reminders: tạo lịch sử nhắc riêng của tài khoản
+  → hiện thông báo Android có nút bấm mở app
+  → bấm thông báo → kiểm tra phiên → đánh dấu đã đọc → danh sách từ đến hạn
+```
+
+Mỗi tài khoản tối đa một lời nhắc hằng ngày trên thiết bị; hộp thông báo có khóa duy nhất tài khoản/ngày để gửi lại không nhân đôi. Nếu mất mạng, Android vẫn nhắc bằng nội dung chung và giữ ngày chờ đồng bộ. Khi mở lại có mạng, app bổ sung lịch sử qua API, rồi xóa yêu cầu chờ. Giữ tối đa 7 ngày chờ; yêu cầu quá cũ bị bỏ qua thay vì chặn đăng nhập. Thông báo thử không dùng cơ chế ghi lịch sử này.
+
+Worker chỉ lưu user ID và giờ trong dữ liệu công việc, lấy token từ phiên hiện tại. Đăng xuất hủy lịch/thông báo hệ thống. Cả trước và sau các request đều kiểm tra phiên để tránh kết quả muộn của người trước hiện cho tài khoản sau. Thông báo hiển thị nội dung nhắc chung/số từ, không đưa danh sách từ cá nhân lên màn khóa công khai.
+
+Backend trên máy tính vẫn cần chạy để tải từ, đồng bộ hộp thông báo và cập nhật tiến độ; lời nhắc cục bộ có phương án mất mạng. Hiện chưa có Firebase Cloud Messaging cho server gửi thông báo tùy ý từ xa; không cần tạo tài khoản Firebase để dùng chức năng này.
+
+### Database và API mới
+
+Chạy từ thư mục `backend` sau khi kéo code:
+
+```powershell
+.\.venv\Scripts\python.exe -m alembic upgrade head
+```
+
+Không cần import SQL lại. Migration `0007_reminders` thêm:
+
+- `users.reminder_minutes`: phút tính từ 00:00, 0–1439; mặc định 1200 (20:00). Vẫn dùng `reminders_enabled` đã có.
+- `learning_progress.review_interval_days` và index `(user_id, next_review_at)`.
+- `notifications`: chủ tài khoản, ngày nhắc, tiêu đề, nội dung, thời điểm tạo/đã đọc; duy nhất `(user_id, occurrence_date)`.
+
+| API cần Bearer token | Chức năng |
+|---|---|
+| `GET`, `PATCH /users/me` | Đọc/lưu reminder_minutes và reminders_enabled cùng hồ sơ; client cũ bỏ reminder_minutes sẽ giữ giờ đã có |
+| `GET /learning/me` | Thêm due_count; mỗi tiến độ có next_review_at và review_interval_days |
+| `GET /learning/me/due?limit=100` | Danh sách từ đến hạn, giới hạn tối đa 200 |
+| `GET /notifications?offset=0&limit=50` | Phân trang hộp thông báo và số chưa đọc |
+| `POST /notifications/reminders` | Ghi nhắc theo occurrence_date; gửi lại cùng ngày trả bản ghi cũ |
+| `POST /notifications/{id}/read` | Đánh dấu một thông báo đã đọc; tài khoản khác nhận 404 |
+| `POST /notifications/read-all` | Đánh dấu mọi thông báo của chính người đang đăng nhập |
+
+### File cần đọc để hiểu luồng
+
+- Backend: `migrations/versions/0007_reminders.py`, `app/repositories/review_repository.py`, `app/repositories/learning_repository.py`, `app/routers/notifications.py`.
+- Android: `notifications/ReminderScheduler.kt`, `ReminderWorker.kt`, `ReminderNotifier.kt`; `ui/NotificationScreens.kt`, `ui/AccountScreens.kt`, `ui/ScreenUi.kt`; `data/local/AppAppearance.kt`.
+- Quy tắc màu nằm ở `Palette` và hai theme trong `res/values/themes.xml`. Chữ trên nút màu dùng onAccent riêng để vẫn đọc được ở giao diện sáng.
+- Kiểm thử backend mới ở `tests/test_reminders.py`: giờ hợp lệ/không hợp lệ, giữ thiết lập client cũ, lịch ôn/retry, truy cập chéo tài khoản, thông báo đồng thời không trùng, đã đọc và migration giữ dữ liệu.
+- `ReminderTimingTest.kt` kiểm tra giờ sắp tới, qua nửa đêm, đúng giờ và múi giờ.
+
+
+Kiểm tra ngày 24/10/2026: **34 backend tests, 11 Kotlin unit tests và build APK đều qua**. Emulator xác nhận đổi sáng/tối áp dụng ngay, giữ bản nhập và nhớ sau mở lại; chọn giờ nhắc lưu PostgreSQL; thông báo thử mở màn ôn; học từ thông báo cập nhật lịch ôn. Bài kiểm tra nền xác nhận job WorkManager đã lưu, chạy worker ở nền khi ngắt server, hiện thông báo cục bộ; bấm khi kết nối lại chỉ tạo một bản ghi rồi đánh dấu đã đọc và mở đúng từ đến hạn. Có dùng lệnh kiểm thử JobScheduler sau giờ đã chọn để kiểm tra worker độc lập với độ trễ gom lịch của emulator. Thu hồi quyền đã hủy lịch đúng; dữ liệu/tài khoản thử được xóa, SharedPreferences, màu và quyền thông báo ban đầu được khôi phục. Migration 0007 đã áp dụng trên máy phát triển, không import lại SQL.

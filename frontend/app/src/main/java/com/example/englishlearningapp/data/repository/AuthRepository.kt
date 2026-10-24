@@ -34,9 +34,9 @@ class AuthRepository(private val api: ApiService, private val store: LearningSto
             user
         }
     }
-    suspend fun updateProfile(name: String,level: String,goal: Int,reminders: Boolean): Result<UserDto> = apiResult {
+    suspend fun updateProfile(name: String,level: String,goal: Int,reminders: Boolean,minutes: Int=store.reminderMinutes): Result<UserDto> = apiResult {
         val token=store.token ?: error("Hãy đăng nhập lại.")
-        val user=api.updateProfile(ProfileUpdateRequest(name.trim(),level.substringBefore(" "),goal,reminders),"Bearer $token").requireData()
+        val user=api.updateProfile(ProfileUpdateRequest(name.trim(),level.substringBefore(" "),goal,reminders,minutes),"Bearer $token").requireData()
         if (store.token!=token) throw CancellationException("Session changed")
         store.activateUser(user)
         user

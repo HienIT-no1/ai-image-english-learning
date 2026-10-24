@@ -19,6 +19,7 @@ def get_my_profile(current_user:User=Depends(get_current_user),db:Session=Depend
 def update_my_profile(data:ProfileUpdate,user:User=Depends(get_current_user),db:Session=Depends(get_db)):
     user.full_name=data.full_name;user.cefr_level=data.cefr_level;user.daily_goal=data.daily_goal
     user.reminders_enabled=data.reminders_enabled;user.onboarding_completed=True
+    if data.reminder_minutes is not None: user.reminder_minutes=data.reminder_minutes
     user.english_level={'A1':'BEGINNER','A2':'BEGINNER','B1':'INTERMEDIATE','B2':'ADVANCED'}[data.cefr_level]
     db.commit();db.refresh(user)
     return user

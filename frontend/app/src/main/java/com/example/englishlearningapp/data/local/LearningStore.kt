@@ -33,12 +33,15 @@ class LearningStore(private val context: Context) {
         })
         goal = user.dailyGoal ?: 10
         reminders = user.remindersEnabled
+        reminderMinutes = user.reminderMinutes
         onboardingCompleted = user.onboardingCompleted
         role = user.role ?: "USER"
         signedIn = true
+        com.example.englishlearningapp.notifications.ReminderScheduler.sync(context)
     }
 
     fun clearSession() {
+        com.example.englishlearningapp.notifications.ReminderScheduler.cancel(context)
         sessionPrefs.edit().remove("token").remove("active_user_id").remove("role").putBoolean("signed_in",false).apply()
     }
     var role: String
@@ -65,6 +68,17 @@ class LearningStore(private val context: Context) {
     var reminders: Boolean
         get() = prefs.getBoolean("reminders", false)
         set(value) { prefs.edit().putBoolean("reminders", value).apply() }
+    var reminderMinutes: Int
+        get() = prefs.getInt("reminder_minutes",1200)
+        set(value) { prefs.edit().putInt("reminder_minutes",value).apply() }
+    var pendingReminderDates: Set<String>
+        get() = prefs.getStringSet("pending_reminder_dates",emptySet())?.toSet() ?: emptySet()
+        set(value) { prefs.edit().putStringSet("pending_reminder_dates",value.toSet()).apply() }
+    var lastReminderDate: String?
+        get() = prefs.getString("last_reminder_date",null)
+        set(value) { prefs.edit().putString("last_reminder_date",value).apply() }
+    val dueCount get() = prefs.getInt("due_count",0)
+    val summaryDate get() = prefs.getString("summary_date",null)
     var saved: Set<String>
         get() = prefs.getStringSet("saved", emptySet())?.toSet() ?: emptySet()
         set(value) { prefs.edit().putStringSet("saved", value.toSet()).apply() }
@@ -104,6 +118,7 @@ class LearningStore(private val context: Context) {
             .putInt("server_streak",data.currentStreak).putInt("quiz_runs",data.quizRuns)
             .putInt("quiz_correct",data.quizCorrect).putInt("quiz_total",data.quizTotal)
             .putStringSet("days",data.days.filter { it.count>0 }.map { it.date }.toSet()).apply()
+        prefs.edit().putInt("due_count",data.dueCount).putString("summary_date",data.today).apply()
         goal=data.dailyGoal
     }
     val reviews get() = prefs.getInt("reviews",0)

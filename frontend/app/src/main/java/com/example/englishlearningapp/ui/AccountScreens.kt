@@ -10,6 +10,11 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
+import androidx.activity.result.contract.ActivityResultContracts
+import com.example.englishlearningapp.MainActivity
+import com.example.englishlearningapp.notifications.ReminderNotifier
+import com.example.englishlearningapp.notifications.ReminderScheduler
 class AuthFragment : ScreenFragment() {
     override fun render() {
         val registering = findNavController().currentDestination?.id == R.id.registerFragment
@@ -49,6 +54,7 @@ class AuthFragment : ScreenFragment() {
                             (requireActivity() as com.example.englishlearningapp.MainActivity).loadAccountData().onFailure { toast(it.message ?: "Không tải được dữ liệu học.") }
                             words.loadFromApi()
                             enter(if (user.role=="ADMIN") R.id.adminFragment else if (user.onboardingCompleted) R.id.homeFragment else R.id.onboardingFragment)
+                            (requireActivity() as MainActivity).openPendingNotification()
                         }.onFailure { toast(it.message ?: "Có lỗi xảy ra") }
                     }
                 }
@@ -99,6 +105,7 @@ class OnboardingFragment : ScreenFragment() {
                 auth.updateProfile(store.name,selectedLevel,selectedGoal,store.reminders).onSuccess {
                     learning.load()
                     findNavController().navigate(R.id.homeFragment,null,NavOptions.Builder().setPopUpTo(R.id.nav_graph,true).build())
+                    (requireActivity() as MainActivity).openPendingNotification()
                 }.onFailure { toast(it.message ?: "Chưa lưu được hồ sơ.") }
                 saving=false;refresh()
             }
@@ -116,6 +123,7 @@ class ProfileFragment : ScreenFragment() {
         stats(store.saved.size.toString() to "Từ đã lưu", store.streak.toString() to "Ngày liên tiếp", store.mastered.size.toString() to "Đã nhớ")
         tile("↗", "Tiến độ học tập", "Thống kê & mục tiêu mỗi ngày") { go(R.id.progressFragment) }
         tile("◷", "Lịch sử nhận diện", "Các lần thử nhận diện bằng ảnh") { go(R.id.historyFragment) }
+        tile("♧", "Thông báo", "Nhắc học và các từ đến hạn") { go(R.id.notificationsFragment) }
         tile("⚙", "Cài đặt", "Tên, trình độ & mục tiêu học tập") { go(R.id.settingsFragment) }
         if (store.isAdmin) tile("▦", "Quản trị hệ thống", "Quản lý người dùng, chủ đề và từ vựng", Palette.purple) { go(R.id.adminFragment) }
         button("Đăng xuất", Palette.orange, outlined = true) {
@@ -132,57 +140,109 @@ class ProfileFragment : ScreenFragment() {
 
 class SettingsFragment : ScreenFragment() {
     private var saving=false
-    private var draftName = ""
-    private var draftLevel = ""
-    private var draftGoal = 10
-    private var draftReminders = false
+    private var draftName=""
+    private var draftLevel=""
+    private var draftGoal=10
+    private var draftReminders=false
+    private var draftMinutes=1200
+    private var previewAfterPermission=false
+    private val notificationPermission=registerForActivityResult(ActivityResultContracts.RequestPermission()) { allowed ->
+        if(isAdded && view!=null) {
+            if(allowed && previewAfterPermission) ReminderScheduler.preview(requireContext())
+            if(!allowed) toast("Chưa được cấp quyền. Bạn có thể mở cài đặt thông báo của điện thoại.")
+            ReminderScheduler.sync(requireContext());refresh()
+        }
+        previewAfterPermission=false
+    }
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
-        draftName = state?.getString("name") ?: store.name
-        draftLevel = state?.getString("level") ?: store.level
-        draftGoal = state?.getInt("goal") ?: store.goal
-        draftReminders = state?.getBoolean("reminders") ?: store.reminders
+        val draft=state ?: arguments
+        draftName=draft?.getString("name") ?: store.name
+        draftLevel=draft?.getString("level") ?: store.level
+        draftGoal=draft?.getInt("goal",store.goal) ?: store.goal
+        draftReminders=draft?.getBoolean("reminders",store.reminders) ?: store.reminders
+        draftMinutes=draft?.getInt("minutes",store.reminderMinutes) ?: store.reminderMinutes
     }
-    override fun onSaveInstanceState(state: Bundle) {
-        super.onSaveInstanceState(state)
-        state.putString("name",draftName); state.putString("level",draftLevel)
-        state.putInt("goal",draftGoal); state.putBoolean("reminders",draftReminders)
+    fun snapshot()=Bundle().apply {
+        putString("name",draftName);putString("level",draftLevel);putInt("goal",draftGoal)
+        putBoolean("reminders",draftReminders);putInt("minutes",draftMinutes)
     }
+    override fun onSaveInstanceState(state: Bundle) { state.putAll(snapshot());super.onSaveInstanceState(state) }
     override fun render() {
-        header("CÁ NHÂN HÓA", "Cài đặt học tập", "Điều chỉnh để việc học trở nên thoải mái hơn.", true)
-        val name = field("Tên hiển thị",draftName,viewId=R.id.input_settings_name)
+        header("CÁ NHÂN HÓA","Cài đặt học tập","Điều chỉnh để việc học trở nên thoải mái hơn.",true)
+        section("Màu giao diện")
+        button("${if(!Palette.light) "✓  " else ""}Tối • Xanh tím",Palette.purple,outlined=!Palette.light) {
+            hideKeyboard();(requireActivity() as MainActivity).changeTheme(false,snapshot())
+        }.id=R.id.theme_dark
+        button("${if(Palette.light) "✓  " else ""}Sáng • Trắng xanh dịu",Palette.blue,outlined=Palette.light) {
+            hideKeyboard();(requireActivity() as MainActivity).changeTheme(true,snapshot())
+        }.id=R.id.theme_light
+        notice("Màu đổi ngay và được nhớ trên điện thoại này.")
+        section("Hồ sơ học tập")
+        val name=field("Tên hiển thị",draftName,viewId=R.id.input_settings_name)
         name.doAfterTextChanged { draftName=it.toString() }
-        section("Trình độ")
-        button(draftLevel, outlined = true) {
-            val levels = arrayOf("A1 • Mới bắt đầu","A2 • Cơ bản","B1 • Trung cấp","B2 • Khá")
-            MaterialAlertDialogBuilder(requireContext()).setTitle("Chọn trình độ").setItems(levels) { _, i ->
-                draftLevel = levels[i]; hideKeyboard(); refresh()
+        button(draftLevel,outlined=true) {
+            val levels=arrayOf("A1 • Mới bắt đầu","A2 • Cơ bản","B1 • Trung cấp","B2 • Khá")
+            MaterialAlertDialogBuilder(requireContext()).setTitle("Chọn trình độ").setItems(levels) { _,i -> draftLevel=levels[i];hideKeyboard();refresh() }.show()
+        }
+        button("Mục tiêu: $draftGoal lượt mỗi ngày",Palette.purple,outlined=true) {
+            MaterialAlertDialogBuilder(requireContext()).setTitle("Chọn mục tiêu").setItems(arrayOf("5 lượt","10 lượt","15 lượt","20 lượt")) { _,i ->
+                draftGoal=listOf(5,10,15,20)[i];hideKeyboard();refresh()
             }.show()
         }
-        section("Mục tiêu mỗi ngày")
-        button("$draftGoal lượt luyện tập", Palette.purple, outlined = true) {
-            MaterialAlertDialogBuilder(requireContext()).setTitle("Chọn mục tiêu").setItems(arrayOf("5 lượt","10 lượt","15 lượt","20 lượt")) { _, i ->
-                draftGoal = listOf(5,10,15,20)[i]; hideKeyboard(); refresh()
-            }.show()
-        }
-        val toggle = MaterialSwitch(requireContext()).apply {
-            text = "Nhắc ôn tập (tùy chọn mẫu)"; isChecked = draftReminders; setTextColor(Palette.white)
-            setOnCheckedChangeListener { _, checked -> draftReminders = checked }
+        section("Nhắc nhở ôn tập")
+        val toggle=MaterialSwitch(requireContext()).apply {
+            id=R.id.reminder_toggle;text="Nhắc ôn tập hằng ngày";isChecked=draftReminders;setTextColor(Palette.white)
+            setOnCheckedChangeListener { _,checked ->
+                draftReminders=checked
+                if(checked && android.os.Build.VERSION.SDK_INT>=33 && !ReminderNotifier.allowed(requireContext())) requestPermission(false)
+            }
         }
         content.addView(toggle)
-        notice("Bấm Lưu thay đổi để áp dụng. Thông báo theo lịch sẽ được triển khai ở giai đoạn sau.")
-        button(if(saving) "Đang lưu…" else "Lưu thay đổi") {
-            if (saving) return@button
-            if (name.text.toString().trim().isEmpty()) name.error = "Tên không được để trống"
-            else {
-                hideKeyboard();saving=true;refresh()
-                viewLifecycleOwner.lifecycleScope.launch {
-                    auth.updateProfile(draftName.trim(),draftLevel,draftGoal,draftReminders).onSuccess {
-                        learning.load();toast("Đã lưu cài đặt lên máy chủ");findNavController().popBackStack()
-                    }.onFailure { toast(it.message ?: "Chưa lưu được cài đặt.") }
-                    saving=false;refresh()
-                }
+        button("Giờ nhắc: %02d:%02d".format(draftMinutes/60,draftMinutes%60),outlined=true) {
+            android.app.TimePickerDialog(requireContext(),{ _,hour,minute -> draftMinutes=hour*60+minute;hideKeyboard();refresh() },draftMinutes/60,draftMinutes%60,true).show()
+        }.id=R.id.reminder_time
+        val allowed=ReminderNotifier.allowed(requireContext())
+        notice(if(allowed) "Điện thoại đã cho phép thông báo." else "Thông báo đang bị chặn trên điện thoại. Hãy cấp quyền để nhận lời nhắc.")
+        if(!allowed) {
+            button("Cho phép thông báo",outlined=true) { requestPermission(false) }
+            button("Mở cài đặt thông báo",outlined=true) {
+                startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,requireContext().packageName))
             }
-        }.isEnabled=!saving
+        }
+        button("Gửi thử thông báo",Palette.green,outlined=true) {
+            if(ReminderNotifier.allowed(requireContext())) {
+                ReminderScheduler.preview(requireContext());toast("Đã gửi yêu cầu thông báo thử. Kéo thanh thông báo xuống để xem.")
+            } else requestPermission(true)
+        }.id=R.id.reminder_preview
+        notice("Giờ nhắc theo điện thoại. Android có thể gửi trễ khi tiết kiệm pin. Không nhắc nếu bạn đã đạt mục tiêu và không còn từ đến hạn.")
+        button("Xem thông báo trong app",outlined=true) { go(R.id.notificationsFragment) }
+        notice("Bấm Lưu thay đổi để lưu hồ sơ, giờ nhắc và bật/tắt nhắc học lên máy chủ.")
+        button(if(saving) "Đang lưu…" else "Lưu thay đổi") {
+            if(saving) return@button
+            if(draftName.trim().isEmpty()) { name.error="Tên không được để trống";return@button }
+            hideKeyboard();saving=true;refresh()
+            val activity=requireActivity() as MainActivity
+            viewLifecycleOwner.lifecycleScope.launch {
+                val result=activity.auth.updateProfile(draftName.trim(),draftLevel,draftGoal,draftReminders,draftMinutes)
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                if(!isAdded || view==null) return@launch
+                result.onSuccess {
+                    activity.learning.load()
+                    if(isAdded && view!=null) { toast("Đã lưu cài đặt và cập nhật lịch nhắc");findNavController().popBackStack() }
+                }.onFailure { toast(it.message ?: "Chưa lưu được cài đặt.") }
+                saving=false;refresh()
+            }
+        }.apply { id=R.id.settings_save;isEnabled=!saving }
+    }
+    private fun requestPermission(preview: Boolean) {
+        previewAfterPermission=preview
+        if(android.os.Build.VERSION.SDK_INT>=33) notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        else {
+            toast("Hãy bật thông báo trong cài đặt điện thoại.")
+            startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,requireContext().packageName))
+        }
     }
 }

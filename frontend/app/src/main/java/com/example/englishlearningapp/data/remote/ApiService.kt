@@ -39,6 +39,17 @@ interface ApiService {
         @Query("conf") conf: Float = 0.35f
     ): Response<RealtimeDetectResponseDto>
 
+    @GET("learning/me/due")
+    suspend fun dueWords(@Header("Authorization") auth: String): Response<List<VocabularyDto>>
+    @GET("notifications")
+    suspend fun inbox(@Query("offset") offset: Int=0,@Header("Authorization") auth: String): Response<NotificationPageDto>
+    @POST("notifications/reminders")
+    suspend fun recordReminder(@Body body: ReminderRequest,@Header("Authorization") auth: String): Response<NotificationDto>
+    @POST("notifications/{id}/read")
+    suspend fun readNotification(@Path("id") id: Long,@Header("Authorization") auth: String): Response<NotificationDto>
+    @POST("notifications/read-all")
+    suspend fun readAllNotifications(@Header("Authorization") auth: String): Response<MessageDto>
+
     @POST("games/word-shooter")
     suspend fun startGame(@Body body: GameStartRequest,@Header("Authorization") auth: String): Response<GameRunDto>
     @POST("games/word-shooter/{run}/rounds/{round}/finish")
