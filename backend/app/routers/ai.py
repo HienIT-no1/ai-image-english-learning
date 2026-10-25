@@ -16,7 +16,7 @@ router = APIRouter(
 @router.post("/detect/realtime", response_model=RealtimeDetectResponse)
 async def detect_realtime(
     file: UploadFile = File(..., description="Camera frame image"),
-    conf: float = Query(0.35, ge=0.1, le=1.0, description="Confidence threshold"),
+    conf: float = Query(0.55, ge=0.1, le=1.0, description="Confidence threshold"),
     db: Session = Depends(get_db)
 ):
     """
@@ -49,7 +49,7 @@ async def detect_realtime(
 @router.post("/detect/capture", response_model=CaptureDetectResponse)
 async def detect_and_capture(
     file: UploadFile = File(..., description="Captured camera photo"),
-    conf: float = Query(0.35, ge=0.1, le=1.0, description="Confidence threshold"),
+    conf: float = Query(0.55, ge=0.1, le=1.0, description="Confidence threshold"),
     user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db)
 ):

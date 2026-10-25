@@ -12,11 +12,13 @@ from app.routers.database import router as database_router
 from app.routers.users import router as users_router
 from app.routers.vocabularies import router as vocabularies_router
 from app.routers.ai import router as ai_router
+
 app = FastAPI(
     title="English Pose Learning API",
     description="Backend API for an English learning app using pose recognition",
     version="0.1.0",
 )
+
 
 
 app.include_router(notifications_router)

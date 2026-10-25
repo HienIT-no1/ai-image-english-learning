@@ -40,6 +40,7 @@ class CameraRealtimeView @JvmOverloads constructor(
     private var lifecycleOwner: LifecycleOwner? = null
     private var aiRepository: AiRepository? = null
     private var onDetections: ((List<DetectionItemDto>) -> Unit)? = null
+    var onError: ((Throwable) -> Unit)? = null
 
     private val previewView = PreviewView(context).apply {
         scaleType = PreviewView.ScaleType.FILL_CENTER
@@ -124,8 +125,15 @@ class CameraRealtimeView @JvmOverloads constructor(
                         withContext(Dispatchers.Main) {
                             onDetections?.invoke(res.detections)
                         }
+                    }.onFailure { err ->
+                        withContext(Dispatchers.Main) {
+                            onError?.invoke(err)
+                        }
                     }
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        onError?.invoke(e)
+                    }
                 } finally {
                     isAnalyzing = false
                 }

@@ -57,6 +57,7 @@ class WordRepository(private val api: ApiService? = null) {
 
     suspend fun loadFromApi(): Boolean = loadCatalog("all").isSuccess
     fun find(id: String?): Word? = words.firstOrNull { it.id == id }
+    fun findByEnglish(english: String?): Word? = words.firstOrNull { it.english.equals(english?.trim(), ignoreCase = true) }
     fun search(query: String, filter: String, saved: Set<String>): List<Word> {
         val keyword = normalize(query.trim())
         val source = if (filter == "saved" && api != null) savedWords else topicWords[filter] ?: words

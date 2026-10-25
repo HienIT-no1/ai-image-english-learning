@@ -1,5 +1,6 @@
 import io
 import urllib.parse
+from datetime import datetime
 from pathlib import Path
 import cv2
 import numpy as np
@@ -9,8 +10,9 @@ from sqlalchemy.orm import Session
 from ultralytics import YOLO
 
 from app.models.image import Image
+from app.models.topic import Topic, vocabulary_topics
 from app.models.user import User
-from app.models.vocabulary import Vocabulary
+from app.models.vocabulary import Vocabulary, VocabularyMeaning
 from app.schemas.ai import BoundingBox, DetectionItem, VocabularyDetail
 from app.services.cloudinary_service import upload_image_bytes
 
@@ -21,6 +23,60 @@ if not WEIGHTS_PATH.exists():
     WEIGHTS_PATH = Path("weights/best.pt")
 model = YOLO(str(WEIGHTS_PATH))
 
+# Accurate metadata dictionary for model classes (Word, IPA, Vietnamese meaning)
+LABEL_METADATA: dict[str, tuple[str, str | None, str]] = {
+    'airpods_buds': ('earbuds', '/ˈɪə.bʌdz/', 'tai nghe không dây'),
+    'airpods_case': ('charging case', '/ˈtʃɑː.dʒɪŋ keɪs/', 'hộp sạc tai nghe'),
+    'headphones': ('headphones', '/ˈhed.fəʊnz/', 'tai nghe chụp tai'),
+    'ipad': ('tablet', '/ˈtæb.lət/', 'máy tính bảng'),
+    'keyboard': ('keyboard', '/ˈkiː.bɔːd/', 'bàn phím máy tính'),
+    'laptop': ('laptop', '/ˈlæp.tɒp/', 'máy tính xách tay'),
+    'monitor': ('monitor', '/ˈmɒn.ɪ.tər/', 'màn hình máy tính'),
+    'mouse': ('computer mouse', '/maʊs/', 'chuột máy tính'),
+    'phone': ('phone', '/fəʊn/', 'điện thoại'),
+    'playstation_controller': ('game controller', '/kənˈtrəʊ.lər/', 'tay cầm chơi game'),
+    'xbox_controller': ('game controller', '/kənˈtrəʊ.lər/', 'tay cầm chơi game'),
+    'apple': ('apple', '/ˈæp.əl/', 'quả táo'),
+    'backpack': ('backpack', '/ˈbæk.pæk/', 'ba lô'),
+    'banana': ('banana', '/bəˈnɑː.nə/', 'quả chuối'),
+    'bed': ('bed', '/bed/', 'cái giường'),
+    'board': ('board', '/bɔːd/', 'cái bảng'),
+    'calculator': ('calculator', '/ˈkæl.kjə.leɪ.tər/', 'máy tính cầm tay'),
+    'chair': ('chair', '/tʃeər/', 'cái ghế'),
+    'cherry': ('cherry', '/ˈtʃer.i/', 'quả anh đào'),
+    'clock': ('clock', '/klɒk/', 'đồng hồ'),
+    'coconut': ('coconut', '/ˈkəʊ.kə.nʌt/', 'quả dừa'),
+    'couch': ('sofa', '/ˈsəʊ.fə/', 'ghế sofa'),
+    'cucumber': ('cucumber', '/ˈkjuː.kʌm.bər/', 'quả dưa chuột'),
+    'dining table': ('dining table', '/ˈdaɪ.nɪŋ ˌteɪ.bəl/', 'bàn ăn'),
+    'eraser': ('eraser', '/ɪˈreɪ.zər/', 'cục tẩy'),
+    'grape': ('grape', '/ɡreɪp/', 'quả nho'),
+    'kiwi': ('kiwi', '/ˈkiː.wiː/', 'quả kiwi'),
+    'melon': ('melon', '/ˈmel.ən/', 'quả dưa lưới'),
+    'microwave': ('microwave', '/ˈmaɪ.krə.weɪv/', 'lò vi sóng'),
+    'notebook': ('notebook', '/ˈnəʊt.bʊk/', 'quyển vở ghi chép'),
+    'orange': ('orange', '/ˈɒr.ɪndʒ/', 'quả cam'),
+    'oven': ('oven', '/ˈʌv.ən/', 'lò nướng'),
+    'peach': ('peach', '/piːtʃ/', 'quả đào'),
+    'pear': ('pear', '/peər/', 'quả lê'),
+    'pen': ('pen', '/pen/', 'bút mực'),
+    'pencil': ('pencil', '/ˈpen.səl/', 'bút chì'),
+    'pineapple': ('pineapple', '/ˈpaɪnˌæp.əl/', 'quả dứa'),
+    'pomegranate': ('pomegranate', '/ˈpɒm.ɪˌɡræn.ɪt/', 'quả lựu'),
+    'refrigerator': ('refrigerator', '/rɪˈfrɪdʒ.ər.eɪ.tər/', 'tủ lạnh'),
+    'ruler': ('ruler', '/ˈruː.lər/', 'thước kẻ'),
+    'scissors': ('scissors', '/ˈsɪz.əz/', 'cái kéo'),
+    'sharpener': ('pencil sharpener', '/ˈʃɑː.pən.ər/', 'gọt bút chì'),
+    'sink': ('sink', '/sɪŋk/', 'bồn rửa'),
+    'strawberry': ('strawberry', '/ˈstrɔː.bər.i/', 'quả dâu tây'),
+    'table': ('table', '/ˈteɪ.bəl/', 'cái bàn'),
+    'toaster': ('toaster', '/ˈtəʊ.stər/', 'máy nướng bánh mì'),
+    'toilet': ('toilet', '/ˈtɔɪ.lət/', 'bồn cầu'),
+    'tv': ('television', '/ˈtel.ɪ.vɪʒ.ən/', 'ti vi'),
+    'water_bottle': ('water bottle', '/ˈwɔː.tə ˌbɒt.əl/', 'bình nước'),
+    'watermelon': ('watermelon', '/ˈwɔː.təˌmel.ən/', 'quả dưa hấu')
+}
+
 
 def get_default_audio_url(word: str) -> str:
     """Generate free US pronunciation link if DB does not have one."""
@@ -28,49 +84,157 @@ def get_default_audio_url(word: str) -> str:
     return f"https://dict.youdao.com/dictvoice?audio={encoded}&type=2"
 
 
-def lookup_vocabulary(db: Session, raw_label: str) -> VocabularyDetail:
+def sync_model_labels_to_db(db: Session):
+    """
+    Startup sync: Automatically scans model classes from best.pt and ensures
+    all words exist in PostgreSQL 'vocabularies' and 'vocabulary_meanings' tables.
+    """
+    topic = db.query(Topic).filter(Topic.slug == "objects").first()
+    for _, raw_name in model.names.items():
+        key = raw_name.lower().strip()
+        word_str, ipa_str, meaning_str = LABEL_METADATA.get(
+            key,
+            (raw_name.replace("_", " ").strip(), None, raw_name.replace("_", " ").strip())
+        )
+
+        existing = db.query(Vocabulary).filter(func.lower(Vocabulary.word) == word_str.lower()).first()
+        if not existing:
+            new_vocab = Vocabulary(
+                word=word_str,
+                ipa=ipa_str,
+                part_of_speech="noun",
+                level="BEGINNER",
+                audio_url=get_default_audio_url(word_str),
+                created_at=datetime.utcnow()
+            )
+            db.add(new_vocab)
+            db.flush()
+            meaning = VocabularyMeaning(
+                vocabulary_id=new_vocab.vocabulary_id,
+                meaning_vi=meaning_str
+            )
+            db.add(meaning)
+            if topic:
+                db.execute(vocabulary_topics.insert().values(topic_id=topic.topic_id, vocabulary_id=new_vocab.vocabulary_id))
+        else:
+            # Fix mouse meaning to computer mouse in tech/object context
+            if key == "mouse" and existing.meanings:
+                existing.ipa = ipa_str or existing.ipa
+                if not any("máy tính" in (m.meaning_vi or "") for m in existing.meanings):
+                    existing.meanings[0].meaning_vi = "chuột máy tính"
+    db.commit()
+
+
+def lookup_vocabulary(db: Session, raw_label: str, auto_create: bool = False) -> VocabularyDetail:
     """
     Search vocabulary in database to retrieve phonetic (IPA), audio, and Vietnamese meanings.
+    Supports plural/singular normalization (e.g. apples -> apple).
+    auto_create: Only True when capturing photos to save newly confirmed words into DB.
     """
-    normalized_label = raw_label.replace("_", " ").strip()
-    word_search = db.query(Vocabulary).filter(
-        or_(
-            func.lower(Vocabulary.word) == raw_label.lower(),
-            func.lower(Vocabulary.word) == normalized_label.lower()
-        )
-    ).first()
+    key = raw_label.lower().strip()
+    meta_word, meta_ipa, meta_meaning = LABEL_METADATA.get(
+        key,
+        (raw_label.replace("_", " ").strip(), None, raw_label.replace("_", " ").strip())
+    )
+
+    search_candidates = [raw_label, meta_word, raw_label.replace("_", " ").strip()]
+    # Normalize plural s/es (e.g. apples -> apple, watches -> watch)
+    norm = meta_word.lower()
+    if norm.endswith("s") and len(norm) > 3 and norm not in ("scissors", "headphones", "glasses"):
+        search_candidates.append(norm[:-1])
+        if norm.endswith("es") and len(norm) > 4:
+            search_candidates.append(norm[:-2])
+
+    # Prioritize tailored meta_word first (e.g. computer mouse before animal mouse)
+    word_search = db.query(Vocabulary).filter(func.lower(Vocabulary.word) == meta_word.lower()).first()
+    if not word_search:
+        for c in search_candidates:
+            if c.lower() == meta_word.lower():
+                continue
+            word_search = db.query(Vocabulary).filter(func.lower(Vocabulary.word) == c.lower()).first()
+            if word_search:
+                break
 
     if word_search:
         meaning_vi = None
-        if word_search.meanings and len(word_search.meanings) > 0:
-            meaning_vi = word_search.meanings[0].meaning_vi
+        if key in LABEL_METADATA and key == "mouse":
+            meaning_vi = meta_meaning
+        elif word_search.meanings and len(word_search.meanings) > 0:
+            meaning_vi = word_search.meanings[0].meaning_vi or meta_meaning
+        else:
+            meaning_vi = meta_meaning
 
         audio_url = word_search.audio_url or get_default_audio_url(word_search.word)
 
         return VocabularyDetail(
             vocabulary_id=word_search.vocabulary_id,
             word=word_search.word,
-            ipa=word_search.ipa,
+            ipa=word_search.ipa or meta_ipa,
             part_of_speech=word_search.part_of_speech or "noun",
             meaning_vi=meaning_vi,
             audio_url=audio_url,
         )
 
-    # Fallback if the word is not yet in the vocabulary database
+    # If not in DB and auto_create is False (e.g. during realtime scanning), DO NOT write to DB!
+    if not auto_create:
+        return VocabularyDetail(
+            vocabulary_id=None,
+            word=meta_word,
+            ipa=meta_ipa,
+            part_of_speech="noun",
+            meaning_vi=meta_meaning,
+            audio_url=get_default_audio_url(meta_word),
+        )
+
+    # When capturing a photo with confirmed object: Auto-save newly discovered vocabulary to DB
+    try:
+        new_vocab = Vocabulary(
+            word=meta_word,
+            ipa=meta_ipa,
+            part_of_speech="noun",
+            level="BEGINNER",
+            audio_url=get_default_audio_url(meta_word),
+            created_at=datetime.utcnow()
+        )
+        db.add(new_vocab)
+        db.flush()
+        db.add(VocabularyMeaning(vocabulary_id=new_vocab.vocabulary_id, meaning_vi=meta_meaning))
+        topic = db.query(Topic).filter(Topic.slug == "objects").first()
+        if topic:
+            db.execute(vocabulary_topics.insert().values(topic_id=topic.topic_id, vocabulary_id=new_vocab.vocabulary_id))
+        db.commit()
+        return VocabularyDetail(
+            vocabulary_id=new_vocab.vocabulary_id,
+            word=new_vocab.word,
+            ipa=new_vocab.ipa,
+            part_of_speech="noun",
+            meaning_vi=meta_meaning,
+            audio_url=new_vocab.audio_url,
+        )
+    except Exception:
+        db.rollback()
+
     return VocabularyDetail(
         vocabulary_id=None,
-        word=normalized_label,
-        ipa=None,
+        word=meta_word,
+        ipa=meta_ipa,
         part_of_speech="noun",
-        meaning_vi=None,
-        audio_url=get_default_audio_url(normalized_label),
+        meaning_vi=meta_meaning,
+        audio_url=get_default_audio_url(meta_word),
     )
 
 
-def detect_objects_from_bytes(image_bytes: bytes, db: Session, conf: float = 0.35):
+def detect_objects_from_bytes(
+    image_bytes: bytes,
+    db: Session,
+    conf: float = 0.55,
+    auto_create_vocab: bool = False
+):
     """
     Run YOLO inference on image bytes and enrich with vocabulary info.
     Auto-corrects EXIF rotation for smartphone camera photos.
+    Filters out completely blank/flat images (std < 6.0).
+    auto_create_vocab: False for realtime scanning (read-only), True for capture.
     """
     img = None
     try:
@@ -87,6 +251,11 @@ def detect_objects_from_bytes(image_bytes: bytes, db: Session, conf: float = 0.3
         raise ValueError("Invalid image file format")
 
     height, width, _ = img.shape
+
+    # Issue 1 Fix: Filter out completely solid/blank images (white, grey, black frames with std < 6.0)
+    if float(img.std()) < 6.0:
+        return [], width, height
+
     results = model.predict(source=img, conf=conf, verbose=False)
 
     detections: list[DetectionItem] = []
@@ -107,7 +276,7 @@ def detect_objects_from_bytes(image_bytes: bytes, db: Session, conf: float = 0.3
                 y2=round(xyxy[3], 2),
             )
 
-            vocab_detail = lookup_vocabulary(db, raw_label)
+            vocab_detail = lookup_vocabulary(db, raw_label, auto_create=auto_create_vocab)
 
             detections.append(
                 DetectionItem(
@@ -125,39 +294,37 @@ def capture_and_save(
     image_bytes: bytes,
     user_id: int | None,
     db: Session,
-    conf: float = 0.35
+    conf: float = 0.55
 ):
     """
-    1. Detect objects using AI
-    2. Upload image to Cloudinary (folder: app_img_eng)
-    3. Save image URL to PostgreSQL
-    4. Return full response
+    1. Detect objects using AI (auto_create_vocab=True only if objects are confirmed)
+    2. If objects confirmed:
+       - Upload image to Cloudinary (folder: app_img_eng)
+       - Save image record to PostgreSQL only for authenticated user
+    3. Return full response
     """
-    # Step 1: Detect objects
-    detections, width, height = detect_objects_from_bytes(image_bytes, db, conf=conf)
+    # Step 1: Detect objects and create vocab in DB only for confirmed objects
+    detections, width, height = detect_objects_from_bytes(
+        image_bytes,
+        db,
+        conf=conf,
+        auto_create_vocab=True
+    )
 
-    # Step 2: Upload to Cloudinary
-    secure_url = upload_image_bytes(image_bytes, folder="app_img_eng")
-
-    # Step 3: Determine user_id to associate with Image
-    final_user_id = user_id
-    if final_user_id is None:
-        # Fallback to the first available user in DB for demo/testing
-        first_user = db.query(User.user_id).first()
-        if first_user:
-            final_user_id = first_user[0]
-
-    # Step 4: Save record to PostgreSQL
+    # Step 2 & 3: Only upload to Cloudinary and save to DB when objects ARE ACTUALLY CONFIRMED!
     image_record = None
-    if final_user_id is not None:
-        image_record = Image(
-            user_id=final_user_id,
-            image_url=secure_url,
-            source_type="CAMERA",
-        )
-        db.add(image_record)
-        db.commit()
-        db.refresh(image_record)
+    secure_url = ""
+    if detections:
+        secure_url = upload_image_bytes(image_bytes, folder="app_img_eng")
+        if user_id is not None:
+            image_record = Image(
+                user_id=user_id,
+                image_url=secure_url,
+                source_type="CAMERA",
+            )
+            db.add(image_record)
+            db.commit()
+            db.refresh(image_record)
 
     return {
         "image_id": image_record.image_id if image_record else None,

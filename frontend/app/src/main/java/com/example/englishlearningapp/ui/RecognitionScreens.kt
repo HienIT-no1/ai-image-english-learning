@@ -9,10 +9,12 @@ import android.widget.LinearLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import com.example.englishlearningapp.R
 import com.example.englishlearningapp.data.model.CaptureDetectResponseDto
 import com.example.englishlearningapp.data.model.DetectionItemDto
+import com.example.englishlearningapp.data.model.Word
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -67,7 +69,7 @@ class CameraFragment : ScreenFragment() {
 
         if (image != null) {
             val preview = column(color = Palette.elevated, padding = 16)
-            val photo = ImagePreviewView(requireContext(), Uri.parse(image))
+            val photo = ImagePreviewView(requireContext(), image!!.toUri())
             preview.addView(photo, LinearLayout.LayoutParams(-1, dp(240)))
 
             button("✨ Phân tích ảnh này", Palette.purple) {
@@ -161,7 +163,19 @@ class CameraFragment : ScreenFragment() {
             speak(det.vocabulary.word)
         }
 
-        val matched = words.find(det.vocabulary.word)
+        val vocabId = det.vocabulary.vocabularyId?.toString()
+        val matched = (vocabId?.let { words.find(it) } ?: words.findByEnglish(det.vocabulary.word))
+            ?: if (vocabId != null) Word(
+                id = vocabId,
+                english = det.vocabulary.word,
+                ipa = det.vocabulary.ipa.orEmpty(),
+                meaning = det.vocabulary.meaningVi ?: det.label,
+                example = "",
+                translation = "",
+                topic = "objects",
+                symbol = "📦"
+            ) else null
+
         if (matched != null) {
             val saved = matched.id in store.saved
             button(if (saved) "✓ Đã lưu trong từ vựng" else "＋ Lưu vào bộ sưu tập", outlined = saved, parent = card) {
@@ -208,7 +222,7 @@ class RecognitionFragment : ScreenFragment() {
         val preview = column(color = Palette.elevated, padding = 12)
 
         val photo = if (uriString != null) {
-            ImagePreviewView(requireContext(), Uri.parse(uriString)).also { p ->
+            ImagePreviewView(requireContext(), uriString.toUri()).also { p ->
                 preview.addView(p, LinearLayout.LayoutParams(-1, dp(260)))
             }
         } else {
@@ -221,7 +235,7 @@ class RecognitionFragment : ScreenFragment() {
             analyzedUri = uriString
             loading = true
             lifecycleScope.launch {
-                val res = ai.detectCapture(requireContext(), Uri.parse(uriString))
+                val res = ai.detectCapture(requireContext(), uriString.toUri())
                 loading = false
                 res.onSuccess {
                     result = it
@@ -280,7 +294,19 @@ class RecognitionFragment : ScreenFragment() {
                         speak(det.vocabulary.word)
                     }
 
-                    val matchedWord = words.find(det.vocabulary.word)
+                    val vocabId = det.vocabulary.vocabularyId?.toString()
+                    val matchedWord = (vocabId?.let { words.find(it) } ?: words.findByEnglish(det.vocabulary.word))
+                        ?: if (vocabId != null) Word(
+                            id = vocabId,
+                            english = det.vocabulary.word,
+                            ipa = det.vocabulary.ipa.orEmpty(),
+                            meaning = det.vocabulary.meaningVi ?: det.label,
+                            example = "",
+                            translation = "",
+                            topic = "objects",
+                            symbol = "📦"
+                        ) else null
+
                     if (matchedWord != null) {
                         val saved = matchedWord.id in store.saved
                         button(if (saved) "✓ Đã lưu" else "＋ Lưu vào bộ sưu tập", outlined = saved, parent = card) {
