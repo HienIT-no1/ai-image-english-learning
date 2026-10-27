@@ -15,7 +15,10 @@ import com.example.englishlearningapp.R
 import com.example.englishlearningapp.data.model.CaptureDetectResponseDto
 import com.example.englishlearningapp.data.model.DetectionItemDto
 import com.example.englishlearningapp.data.model.Word
+import com.example.englishlearningapp.data.model.RecognitionHistoryEntry
+import com.example.englishlearningapp.data.model.RecognitionHistoryCodec
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -126,7 +129,7 @@ class CameraFragment : ScreenFragment() {
     }
 
     private fun handleDetections(detections: List<DetectionItemDto>) {
-        if (detections.isEmpty()) return
+        if (detections.isEmpty()) { steadyWord = null; steadyStartTime = 0L; return }
         val topDet = detections.maxByOrNull { it.confidence } ?: detections.first()
         val word = topDet.vocabulary.word.ifBlank { topDet.label }
         val now = System.currentTimeMillis()
@@ -139,7 +142,9 @@ class CameraFragment : ScreenFragment() {
                     renderSteadyWordCard(topDet, container)
                 }
                 val timestamp = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
-                store.history = (store.history + "$word|$timestamp").takeLast(50)
+                store.history = (store.history + RecognitionHistoryCodec.encode(RecognitionHistoryEntry(
+                    topDet.vocabulary.vocabularyId?.toString(), word, topDet.vocabulary.ipa.orEmpty(),
+                    topDet.vocabulary.meaningVi.orEmpty(), timestamp))).takeLast(50)
             }
         } else {
             steadyWord = word
@@ -157,7 +162,7 @@ class CameraFragment : ScreenFragment() {
         text("$ipa$meaning", 13, Palette.muted, parent = card)
 
         val conf = (det.confidence * 100).toInt()
-        text("Độ chính xác: $conf%", 11, Palette.blue, parent = card)
+        text("Độ tin cậy: $conf%", 11, Palette.blue, parent = card)
 
         button("🔊 Nghe phát âm", Palette.blue, parent = card) {
             speak(det.vocabulary.word)
@@ -234,16 +239,23 @@ class RecognitionFragment : ScreenFragment() {
         if (uriString != null && result == null && !loading && analyzedUri != uriString) {
             analyzedUri = uriString
             loading = true
-            lifecycleScope.launch {
+            val owner = store.userId
+            viewLifecycleOwner.lifecycleScope.launch {
                 val res = ai.detectCapture(requireContext(), uriString.toUri())
+                ensureActive()
+                if (!isAdded || view == null || store.userId != owner) return@launch
                 loading = false
                 res.onSuccess {
                     result = it
                     errorMsg = null
                     if (it.detections.isNotEmpty()) {
                         val timestamp = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
-                        val firstWord = it.detections.first().vocabulary.word
-                        store.history = (store.history + "$firstWord|$timestamp").takeLast(50)
+                        val entries = it.detections.map { detection ->
+                            RecognitionHistoryCodec.encode(RecognitionHistoryEntry(
+                                detection.vocabulary.vocabularyId?.toString(), detection.vocabulary.word,
+                                detection.vocabulary.ipa.orEmpty(), detection.vocabulary.meaningVi.orEmpty(), timestamp))
+                        }
+                        store.history = (store.history + entries).takeLast(50)
                     }
                 }.onFailure { err ->
                     errorMsg = err.message ?: "Lỗi kết nối máy chủ AI"
@@ -288,7 +300,7 @@ class RecognitionFragment : ScreenFragment() {
                     text("$ipaText$meaningText", 13, Palette.muted, parent = card)
 
                     val confPercent = (det.confidence * 100).toInt()
-                    text("Độ chính xác: $confPercent%", 11, Palette.blue, parent = card)
+                    text("Độ tin cậy: $confPercent%", 11, Palette.blue, parent = card)
 
                     button("🔊 Nghe", Palette.blue, parent = card) {
                         speak(det.vocabulary.word)

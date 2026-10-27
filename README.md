@@ -648,3 +648,51 @@ Không cần import SQL lại. Migration `0007_reminders` thêm:
 
 
 Kiểm tra ngày 24/10/2026: **34 backend tests, 11 Kotlin unit tests và build APK đều qua**. Emulator xác nhận đổi sáng/tối áp dụng ngay, giữ bản nhập và nhớ sau mở lại; chọn giờ nhắc lưu PostgreSQL; thông báo thử mở màn ôn; học từ thông báo cập nhật lịch ôn. Bài kiểm tra nền xác nhận job WorkManager đã lưu, chạy worker ở nền khi ngắt server, hiện thông báo cục bộ; bấm khi kết nối lại chỉ tạo một bản ghi rồi đánh dấu đã đọc và mở đúng từ đến hạn. Có dùng lệnh kiểm thử JobScheduler sau giờ đã chọn để kiểm tra worker độc lập với độ trễ gom lịch của emulator. Thu hồi quyền đã hủy lịch đúng; dữ liệu/tài khoản thử được xóa, SharedPreferences, màu và quyền thông báo ban đầu được khôi phục. Migration 0007 đã áp dụng trên máy phát triển, không import lại SQL.
+
+
+## 14. Sửa luồng nhận diện và lịch sử — 27/10/2026
+
+Chạy từ `backend` sau khi kéo code:
+
+```powershell
+.\.venv\Scripts\python.exe setup_ai_models.py
+.\.venv\Scripts\python.exe -m alembic upgrade head
+```
+
+`setup_ai_models.py` tải YOLO11n chính thức và kiểm tra SHA-256; không thay `weights/best.pt`.
+File tham chiếu `weights/yolo11n.pt` được bỏ qua khi commit, máy mới chạy lệnh setup một lần.
+Tham khảo [YOLO11 chính thức](https://docs.ultralytics.com/models/yolo11/).
+
+Đặt CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY và CLOUDINARY_API_SECRET trong `.env` riêng của máy.
+Không đưa secret vào Git. Khởi động lại backend sau khi cập nhật code hoặc cấu hình.
+`AI_REFERENCE_ENABLED=true` là mặc định. Có thể đặt false để đánh giá riêng model custom;
+ảnh táo trong bộ regression có thể bị nhận nhầm khi tắt đối chiếu.
+
+- Realtime chỉ đọc; capture bắt buộc JWT hợp lệ. Thiếu/sai/hết hạn token trả 401 trước khi nhận diện, upload hoặc tạo từ.
+- Ảnh rỗng/hỏng trả 400, quá 10 MB trả 413, ảnh trên 25 megapixel bị từ chối. Backend tự xử lý EXIF.
+  Dùng Pillow đọc ảnh trực tiếp, không gọi bộ mở ảnh của Ultralytics nên file hỏng không kích hoạt tự cài package.
+- Model custom vẫn xử lý 51 nhãn. Khi có vật thể, YOLO11n đối chiếu độc lập. Chỉ thay kết quả cho cùng vùng ảnh
+  (IoU >= 0.5), nhãn tham chiếu được ánh xạ tương đương, confidence >= 0.75 và cao hơn custom ít nhất 0.15.
+  Không dùng quy tắc đổi mọi quả lựu thành táo. Confidence giữa hai model chưa được hiệu chuẩn; đây là chính sách
+  giảm nhầm đã kiểm thử hồi quy, vẫn cần ảnh gán nhãn/huấn luyện để đo và cải thiện chất lượng toàn bộ model.
+  Các nhãn riêng như tai nghe/tay cầm được giữ. Chưa bổ sung nhận mèo/chó trong luồng này.
+- Upload chạy trước khi tạo từ. Vocabulary, meaning, topic link và image được commit cùng một transaction.
+  Upload hỏng không để lại từ mới. DB lưu thất bại sẽ rollback và yêu cầu xóa ảnh vừa upload; lỗi dọn ảnh
+  được ghi log kèm public_id để xử lý nếu Cloudinary đồng thời không truy cập được.
+- `Mouse` ánh xạ sang `computer mouse`; không dùng ID hay sửa nghĩa của `mouse` động vật.
+  Migration `0008_ai_senses` sửa catalog cũ đã có mouse bằng cách thêm từ riêng, giữ bộ sưu tập/tiến độ cũ.
+  Catalog trống sẽ tạo từ đúng trong lần capture đầu tiên. Migration downgrade giữ từ để bảo toàn tham chiếu người dùng.
+- Android lưu lịch sử bằng snapshot ID/từ/IPA/nghĩa/ngày. Màn lịch sử đọc cả dữ liệu tên từ hoặc ID ở bản cũ,
+  hiển thị được khi cache chưa có từ. Không còn chữ “kết quả mẫu”. Lịch sử vẫn lưu riêng trên thiết bị/tài khoản.
+- Giao diện dùng “Độ tin cậy” cho điểm dự đoán. Request của màn nhận diện bị hủy khi rời màn, không ghi kết quả muộn sang tài khoản khác.
+
+Kiểm thử hồi quy: `tests/test_ai_flow.py`, `tests/test_ai_model.py`, `RecognitionHistoryTest.kt`.
+Chạy setup trước `python -m pytest -q` để kiểm tra cả ảnh thực với hai model, không chỉ kiểm tra mock API.
+Ảnh test có nguồn và giấy phép trong `backend/tests/fixtures/README.md`.
+
+Kiểm tra ngày 27/10/2026 sau sửa: **48 backend tests, 15 Kotlin unit tests và build APK đều qua**.
+Test có model thật: ảnh táo trước đây thành pomegranate nay trả apple (confidence 0.893). Emulator xác nhận
+chọn ảnh → YOLO → Cloudinary → PostgreSQL → lưu từ → lịch sử hiển thị đúng; bản ghi lịch sử cũ bằng tên/ID
+và snapshot thiếu cache vẫn đọc được. API chạy thật trả 401 với capture thiếu/sai token; computer mouse có
+ID riêng và nghĩa catalog khớp kết quả AI. Migration 0008 đã chạy trên máy này, giữ mouse động vật và dữ liệu học cũ.
+Ảnh/tài khoản thử được dọn; dữ liệu ứng dụng chỉ thêm từ/meaning/liên kết chủ đề computer mouse theo migration.

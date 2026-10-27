@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     CLOUDINARY_CLOUD_NAME: str | None = None
     CLOUDINARY_API_KEY: str | None = None
     CLOUDINARY_API_SECRET: str | None = None
+    AI_REFERENCE_ENABLED: bool = True
 
     model_config = SettingsConfigDict(
         env_file=".env",

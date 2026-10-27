@@ -1,29 +1,19 @@
-import io
+import logging
 import urllib.parse
-from datetime import datetime
-from pathlib import Path
-import cv2
-import numpy as np
-from PIL import Image as PILImage, ImageOps
-from sqlalchemy import func, or_
+from datetime import datetime, timezone
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
-from ultralytics import YOLO
-
 from app.models.image import Image
 from app.models.topic import Topic, vocabulary_topics
 from app.models.user import User
 from app.models.vocabulary import Vocabulary, VocabularyMeaning
 from app.schemas.ai import BoundingBox, DetectionItem, VocabularyDetail
-from app.services.cloudinary_service import upload_image_bytes
+from app.services.ai_detection import decode_image, detect_candidates
+from app.services.cloudinary_service import upload_image_bytes, delete_uploaded_image, ImageStorageError
 
-# Load YOLO model once (support execution from any working directory)
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-WEIGHTS_PATH = BASE_DIR / "weights" / "best.pt"
-if not WEIGHTS_PATH.exists():
-    WEIGHTS_PATH = Path("weights/best.pt")
-model = YOLO(str(WEIGHTS_PATH))
+logger=logging.getLogger(__name__)
 
-# Accurate metadata dictionary for model classes (Word, IPA, Vietnamese meaning)
 LABEL_METADATA: dict[str, tuple[str, str | None, str]] = {
     'airpods_buds': ('earbuds', '/ˈɪə.bʌdz/', 'tai nghe không dây'),
     'airpods_case': ('charging case', '/ˈtʃɑː.dʒɪŋ keɪs/', 'hộp sạc tai nghe'),
@@ -78,259 +68,83 @@ LABEL_METADATA: dict[str, tuple[str, str | None, str]] = {
 }
 
 
+
 def get_default_audio_url(word: str) -> str:
-    """Generate free US pronunciation link if DB does not have one."""
-    encoded = urllib.parse.quote_plus(word)
-    return f"https://dict.youdao.com/dictvoice?audio={encoded}&type=2"
+    return f"https://dict.youdao.com/dictvoice?audio={urllib.parse.quote_plus(word)}&type=2"
+
+
+def lookup_vocabulary(db: Session, raw_label: str, auto_create: bool=False) -> VocabularyDetail:
+    key=raw_label.strip().lower()
+    canonical,ipa,meaning=LABEL_METADATA.get(key,(raw_label.replace("_"," ").strip(),None,raw_label.replace("_"," ").strip()))
+    # A computer mouse is a distinct sense; never fall back to the animal's ID.
+    candidates=[canonical] if key=="mouse" else list(dict.fromkeys([canonical,raw_label,raw_label.replace("_"," ").strip()]))
+    word=None
+    for candidate in candidates:
+        word=db.scalar(select(Vocabulary).where(func.lower(Vocabulary.word)==candidate.lower()))
+        if word is not None:break
+    if word is None and auto_create:
+        ident=db.scalar(insert(Vocabulary).values(word=canonical,ipa=ipa,part_of_speech="noun",level="BEGINNER",
+                audio_url=get_default_audio_url(canonical),created_at=datetime.now(timezone.utc))
+                .on_conflict_do_nothing(index_elements=["word"]).returning(Vocabulary.vocabulary_id))
+        word=db.scalar(select(Vocabulary).where(Vocabulary.word==canonical))
+        if ident is not None:
+            db.add(VocabularyMeaning(vocabulary_id=ident,meaning_vi=meaning))
+            topic=db.scalar(select(Topic).where(Topic.slug=="objects"))
+            if topic is not None:
+                db.execute(insert(vocabulary_topics).values(vocabulary_id=ident,topic_id=topic.topic_id).on_conflict_do_nothing())
+            db.flush()
+        # No commit here: the caller owns the complete capture transaction.
+    if word is None:
+        return VocabularyDetail(vocabulary_id=None,word=canonical,ipa=ipa,part_of_speech="noun",
+                                meaning_vi=meaning,audio_url=get_default_audio_url(canonical))
+    return VocabularyDetail(vocabulary_id=word.vocabulary_id,word=word.word,ipa=word.ipa or ipa,
+            part_of_speech=word.part_of_speech or "noun",
+            meaning_vi=(word.meanings[0].meaning_vi if word.meanings else None) or meaning,
+            audio_url=word.audio_url or get_default_audio_url(word.word))
 
 
 def sync_model_labels_to_db(db: Session):
-    """
-    Startup sync: Automatically scans model classes from best.pt and ensures
-    all words exist in PostgreSQL 'vocabularies' and 'vocabulary_meanings' tables.
-    """
-    topic = db.query(Topic).filter(Topic.slug == "objects").first()
-    for _, raw_name in model.names.items():
-        key = raw_name.lower().strip()
-        word_str, ipa_str, meaning_str = LABEL_METADATA.get(
-            key,
-            (raw_name.replace("_", " ").strip(), None, raw_name.replace("_", " ").strip())
-        )
-
-        existing = db.query(Vocabulary).filter(func.lower(Vocabulary.word) == word_str.lower()).first()
-        if not existing:
-            new_vocab = Vocabulary(
-                word=word_str,
-                ipa=ipa_str,
-                part_of_speech="noun",
-                level="BEGINNER",
-                audio_url=get_default_audio_url(word_str),
-                created_at=datetime.utcnow()
-            )
-            db.add(new_vocab)
-            db.flush()
-            meaning = VocabularyMeaning(
-                vocabulary_id=new_vocab.vocabulary_id,
-                meaning_vi=meaning_str
-            )
-            db.add(meaning)
-            if topic:
-                db.execute(vocabulary_topics.insert().values(topic_id=topic.topic_id, vocabulary_id=new_vocab.vocabulary_id))
-        else:
-            # Fix mouse meaning to computer mouse in tech/object context
-            if key == "mouse" and existing.meanings:
-                existing.ipa = ipa_str or existing.ipa
-                if not any("máy tính" in (m.meaning_vi or "") for m in existing.meanings):
-                    existing.meanings[0].meaning_vi = "chuột máy tính"
-    db.commit()
-
-
-def lookup_vocabulary(db: Session, raw_label: str, auto_create: bool = False) -> VocabularyDetail:
-    """
-    Search vocabulary in database to retrieve phonetic (IPA), audio, and Vietnamese meanings.
-    Supports plural/singular normalization (e.g. apples -> apple).
-    auto_create: Only True when capturing photos to save newly confirmed words into DB.
-    """
-    key = raw_label.lower().strip()
-    meta_word, meta_ipa, meta_meaning = LABEL_METADATA.get(
-        key,
-        (raw_label.replace("_", " ").strip(), None, raw_label.replace("_", " ").strip())
-    )
-
-    search_candidates = [raw_label, meta_word, raw_label.replace("_", " ").strip()]
-    # Normalize plural s/es (e.g. apples -> apple, watches -> watch)
-    norm = meta_word.lower()
-    if norm.endswith("s") and len(norm) > 3 and norm not in ("scissors", "headphones", "glasses"):
-        search_candidates.append(norm[:-1])
-        if norm.endswith("es") and len(norm) > 4:
-            search_candidates.append(norm[:-2])
-
-    # Prioritize tailored meta_word first (e.g. computer mouse before animal mouse)
-    word_search = db.query(Vocabulary).filter(func.lower(Vocabulary.word) == meta_word.lower()).first()
-    if not word_search:
-        for c in search_candidates:
-            if c.lower() == meta_word.lower():
-                continue
-            word_search = db.query(Vocabulary).filter(func.lower(Vocabulary.word) == c.lower()).first()
-            if word_search:
-                break
-
-    if word_search:
-        meaning_vi = None
-        if key in LABEL_METADATA and key == "mouse":
-            meaning_vi = meta_meaning
-        elif word_search.meanings and len(word_search.meanings) > 0:
-            meaning_vi = word_search.meanings[0].meaning_vi or meta_meaning
-        else:
-            meaning_vi = meta_meaning
-
-        audio_url = word_search.audio_url or get_default_audio_url(word_search.word)
-
-        return VocabularyDetail(
-            vocabulary_id=word_search.vocabulary_id,
-            word=word_search.word,
-            ipa=word_search.ipa or meta_ipa,
-            part_of_speech=word_search.part_of_speech or "noun",
-            meaning_vi=meaning_vi,
-            audio_url=audio_url,
-        )
-
-    # If not in DB and auto_create is False (e.g. during realtime scanning), DO NOT write to DB!
-    if not auto_create:
-        return VocabularyDetail(
-            vocabulary_id=None,
-            word=meta_word,
-            ipa=meta_ipa,
-            part_of_speech="noun",
-            meaning_vi=meta_meaning,
-            audio_url=get_default_audio_url(meta_word),
-        )
-
-    # When capturing a photo with confirmed object: Auto-save newly discovered vocabulary to DB
+    """Explicit seed helper; existing animal meanings are never rewritten."""
     try:
-        new_vocab = Vocabulary(
-            word=meta_word,
-            ipa=meta_ipa,
-            part_of_speech="noun",
-            level="BEGINNER",
-            audio_url=get_default_audio_url(meta_word),
-            created_at=datetime.utcnow()
-        )
-        db.add(new_vocab)
-        db.flush()
-        db.add(VocabularyMeaning(vocabulary_id=new_vocab.vocabulary_id, meaning_vi=meta_meaning))
-        topic = db.query(Topic).filter(Topic.slug == "objects").first()
-        if topic:
-            db.execute(vocabulary_topics.insert().values(topic_id=topic.topic_id, vocabulary_id=new_vocab.vocabulary_id))
+        for label in LABEL_METADATA:lookup_vocabulary(db,label,auto_create=True)
         db.commit()
-        return VocabularyDetail(
-            vocabulary_id=new_vocab.vocabulary_id,
-            word=new_vocab.word,
-            ipa=new_vocab.ipa,
-            part_of_speech="noun",
-            meaning_vi=meta_meaning,
-            audio_url=new_vocab.audio_url,
-        )
     except Exception:
-        db.rollback()
-
-    return VocabularyDetail(
-        vocabulary_id=None,
-        word=meta_word,
-        ipa=meta_ipa,
-        part_of_speech="noun",
-        meaning_vi=meta_meaning,
-        audio_url=get_default_audio_url(meta_word),
-    )
+        db.rollback();raise
 
 
-def detect_objects_from_bytes(
-    image_bytes: bytes,
-    db: Session,
-    conf: float = 0.55,
-    auto_create_vocab: bool = False
-):
-    """
-    Run YOLO inference on image bytes and enrich with vocabulary info.
-    Auto-corrects EXIF rotation for smartphone camera photos.
-    Filters out completely blank/flat images (std < 6.0).
-    auto_create_vocab: False for realtime scanning (read-only), True for capture.
-    """
-    img = None
+def detect_objects_from_bytes(image_bytes: bytes, db: Session, conf: float=.55):
+    image=decode_image(image_bytes)
+    height,width=image.shape[:2]
+    detections=[DetectionItem(label=c.label,confidence=round(c.confidence,3),
+        box=BoundingBox(x1=round(c.box[0],2),y1=round(c.box[1],2),x2=round(c.box[2],2),y2=round(c.box[3],2)),
+        vocabulary=lookup_vocabulary(db,c.label)) for c in detect_candidates(image,conf)]
+    return detections,width,height
+
+
+def capture_and_save(image_bytes: bytes, user_id: int, db: Session, conf: float=.55):
+    if not user_id or db.get(User,user_id) is None:
+        raise PermissionError("A valid user is required to save a capture")
+    # Validation and inference are read-only, including vocabulary lookup.
+    detections,width,height=detect_objects_from_bytes(image_bytes,db,conf)
+    response={"image_id":None,"image_url":"","image_width":width,"image_height":height,
+              "count":len(detections),"detections":detections}
+    if not detections:return response
     try:
-        pil_img = PILImage.open(io.BytesIO(image_bytes))
-        pil_img = ImageOps.exif_transpose(pil_img)
-        if pil_img.mode != "RGB":
-            pil_img = pil_img.convert("RGB")
-        img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+        asset=upload_image_bytes(image_bytes,folder="app_img_eng")
     except Exception:
-        nparr = np.frombuffer(image_bytes, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-    if img is None:
-        raise ValueError("Invalid image file format")
-
-    height, width, _ = img.shape
-
-    # Issue 1 Fix: Filter out completely solid/blank images (white, grey, black frames with std < 6.0)
-    if float(img.std()) < 6.0:
-        return [], width, height
-
-    results = model.predict(source=img, conf=conf, verbose=False)
-
-    detections: list[DetectionItem] = []
-
-    for r in results:
-        if not r.boxes:
-            continue
-        for box in r.boxes:
-            cls_id = int(box.cls[0])
-            raw_label = model.names.get(cls_id, f"object_{cls_id}")
-            confidence = round(float(box.conf[0]), 3)
-
-            xyxy = box.xyxy[0].tolist()
-            box_coords = BoundingBox(
-                x1=round(xyxy[0], 2),
-                y1=round(xyxy[1], 2),
-                x2=round(xyxy[2], 2),
-                y2=round(xyxy[3], 2),
-            )
-
-            vocab_detail = lookup_vocabulary(db, raw_label, auto_create=auto_create_vocab)
-
-            detections.append(
-                DetectionItem(
-                    label=raw_label,
-                    confidence=confidence,
-                    box=box_coords,
-                    vocabulary=vocab_detail,
-                )
-            )
-
-    return detections, width, height
-
-
-def capture_and_save(
-    image_bytes: bytes,
-    user_id: int | None,
-    db: Session,
-    conf: float = 0.55
-):
-    """
-    1. Detect objects using AI (auto_create_vocab=True only if objects are confirmed)
-    2. If objects confirmed:
-       - Upload image to Cloudinary (folder: app_img_eng)
-       - Save image record to PostgreSQL only for authenticated user
-    3. Return full response
-    """
-    # Step 1: Detect objects and create vocab in DB only for confirmed objects
-    detections, width, height = detect_objects_from_bytes(
-        image_bytes,
-        db,
-        conf=conf,
-        auto_create_vocab=True
-    )
-
-    # Step 2 & 3: Only upload to Cloudinary and save to DB when objects ARE ACTUALLY CONFIRMED!
-    image_record = None
-    secure_url = ""
-    if detections:
-        secure_url = upload_image_bytes(image_bytes, folder="app_img_eng")
-        if user_id is not None:
-            image_record = Image(
-                user_id=user_id,
-                image_url=secure_url,
-                source_type="CAMERA",
-            )
-            db.add(image_record)
-            db.commit()
-            db.refresh(image_record)
-
-    return {
-        "image_id": image_record.image_id if image_record else None,
-        "image_url": secure_url,
-        "image_width": width,
-        "image_height": height,
-        "count": len(detections),
-        "detections": detections,
-    }
+        db.rollback();raise
+    try:
+        for detection in detections:
+            detection.vocabulary=lookup_vocabulary(db,detection.label,auto_create=True)
+        image=Image(user_id=user_id,image_url=asset.url,source_type="CAMERA")
+        db.add(image);db.flush()
+        response.update(image_id=image.image_id,image_url=image.image_url)
+        db.commit()
+        return response
+    except Exception as exc:
+        db.rollback()
+        try:
+            delete_uploaded_image(asset.public_id)
+        except Exception:
+            logger.error("Could not compensate failed capture upload: %s",asset.public_id)
+        raise ImageStorageError("Chưa lưu được ảnh. Vui lòng thử lại sau.") from exc

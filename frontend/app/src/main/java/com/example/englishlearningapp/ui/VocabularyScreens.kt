@@ -5,6 +5,7 @@ import android.view.View
 import android.widget.LinearLayout
 import androidx.core.widget.doAfterTextChanged
 import com.example.englishlearningapp.R
+import com.example.englishlearningapp.data.model.RecognitionHistoryCodec
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -130,7 +131,7 @@ class WordDetailFragment : ScreenFragment() {
 
 class HistoryFragment : ScreenFragment() {
     override fun render() {
-        header("NHỮNG KHÁM PHÁ", "Lịch sử nhận diện", "Các phiên dùng thử với kết quả nhận diện mẫu.",true)
+        header("NHỮNG KHÁM PHÁ", "Lịch sử nhận diện", "Các từ bạn đã nhận diện bằng ảnh hoặc camera.",true)
         if(store.history.isEmpty()) {
             text("◷",64,Palette.blue,center=true)
             text("Chưa có khám phá nào",22,bold=true,center=true)
@@ -138,9 +139,16 @@ class HistoryFragment : ScreenFragment() {
             button("Khám phá ngay") { go(R.id.cameraFragment) }
         } else {
             store.history.asReversed().forEachIndexed { index, entry ->
-                val parts=entry.split("|",limit=2)
-                val word=words.find(parts[0]) ?: return@forEachIndexed
-                tile(word.symbol,"Lần ${store.history.size-index} • ${word.english}","${parts.getOrElse(1) { "" }} • Kết quả mẫu") { go(R.id.wordDetailFragment,"wordId" to word.id) }
+                val record=RecognitionHistoryCodec.decode(entry) { words.find(it) ?: words.findByEnglish(it) }
+                    ?: return@forEachIndexed
+                val word=record.vocabularyId?.let { words.find(it) } ?: words.findByEnglish(record.word)
+                tile(word?.symbol ?: "📷", "Lần ${store.history.size-index} • ${record.word}",
+                    listOf(record.timestamp, record.meaning).filter { it.isNotBlank() }.joinToString(" • ")) {
+                    if (word != null) go(R.id.wordDetailFragment, "wordId" to word.id)
+                    else com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(record.word).setMessage(listOf(record.ipa, record.meaning).filter { it.isNotBlank() }.joinToString("\n"))
+                        .setPositiveButton("Nghe phát âm") { _, _ -> speak(record.word) }.setNegativeButton("Đóng",null).show()
+                }
             }
             button("Xóa lịch sử",Palette.orange,outlined=true) {
                 com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext()).setTitle("Xóa lịch sử trên máy?")
