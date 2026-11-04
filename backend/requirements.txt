@@ -6,5 +6,7 @@ pwdlib[argon2]
 python-jose[cryptography]
 alembic>=1.13,<2
 ultralytics
+opencv-python
+Pillow
 python-multipart
 cloudinary
