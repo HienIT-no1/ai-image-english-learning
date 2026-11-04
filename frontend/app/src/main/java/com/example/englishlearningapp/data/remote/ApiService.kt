@@ -50,12 +50,15 @@ interface ApiService {
     @POST("notifications/read-all")
     suspend fun readAllNotifications(@Header("Authorization") auth: String): Response<MessageDto>
 
-    @POST("games/word-shooter")
-    suspend fun startGame(@Body body: GameStartRequest,@Header("Authorization") auth: String): Response<GameRunDto>
-    @POST("games/word-shooter/{run}/rounds/{round}/finish")
-    suspend fun finishGame(@Path("run") run: Long,@Path("round") round: Long,@Body body: GameFinishRequest,@Header("Authorization") auth: String): Response<GameRunDto>
-    @POST("games/word-shooter/{run}/rounds/{round}/next")
-    suspend fun nextGame(@Path("run") run: Long,@Path("round") round: Long,@Header("Authorization") auth: String): Response<GameRunDto>
+    @POST("games/{game}")
+    suspend fun startGame(@Body body: GameStartRequest,@Header("Authorization") auth: String,@Path("game") game: String = "word-shooter"): Response<GameRunDto>
+    @POST("games/{game}/{run}/rounds/{round}/finish")
+    suspend fun finishGame(@Path("run") run: Long,@Path("round") round: Long,@Body body: GameFinishRequest,@Header("Authorization") auth: String,@Path("game") game: String = "word-shooter"): Response<GameRunDto>
+    @POST("games/{game}/{run}/rounds/{round}/next")
+    suspend fun nextGame(@Path("run") run: Long,@Path("round") round: Long,@Header("Authorization") auth: String,@Path("game") game: String = "word-shooter"): Response<GameRunDto>
+
+    @POST("games/word-defense/{run}/complete")
+    suspend fun completeDefense(@Path("run") run: Long,@Header("Authorization") auth: String): Response<GameRunDto>
 
     @GET("admin/summary")
     suspend fun adminSummary(@Header("Authorization") auth: String): Response<AdminSummaryDto>

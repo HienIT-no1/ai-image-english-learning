@@ -1,0 +1,13 @@
+{
+  "lvis_train": "https://dl.fbaipublicfiles.com/LVIS/lvis_v1_train.json.zip",
+  "lvis_val": "https://dl.fbaipublicfiles.com/LVIS/lvis_v1_val.json.zip",
+  "lvis_reference": "https://www.lvisdataset.org/",
+  "open_images_categories": "https://storage.googleapis.com/openimages/v5/class-descriptions-boxable.csv",
+  "old_roboflow": {
+    "workspace": "xuanhien0123z-gmail-com",
+    "project": "yolo_img_english",
+    "version": 2,
+    "status": "source identified in user's notebook; download not yet verified"
+  },
+  "provenance": "Use official LVIS annotations, preserve image URLs and license identifiers, and respect each source's terms. Do not put credentials in notebooks."
+}

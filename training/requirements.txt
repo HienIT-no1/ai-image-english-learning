@@ -1,0 +1,6 @@
+# Install CUDA PyTorch separately from the official CUDA wheel index.
+ultralytics==8.4.188
+lvis==0.5.3
+pycocotools>=2.0.11
+numpy<2.4
+Pillow>=11.3

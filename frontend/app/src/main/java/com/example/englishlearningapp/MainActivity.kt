@@ -49,6 +49,8 @@ class MainActivity : AppCompatActivity() {
         private set
     lateinit var games: GameRepository
         private set
+    lateinit var defense: GameRepository
+        private set
     lateinit var notifications: NotificationRepository
         private set
     private var themeDraft: Bundle?=null
@@ -83,6 +85,7 @@ class MainActivity : AppCompatActivity() {
         learning = LearningRepository(api,store)
         quizzes = QuizRepository(api,store,words,learning)
         games = GameRepository(api,store,learning)
+        defense = GameRepository(api,store,learning,"WORD_DEFENSE")
         notifications = NotificationRepository(api,store,words)
         auth = AuthRepository(api,store) { collections.reset(); learning.reset() }
         enableEdgeToEdge()
@@ -121,6 +124,9 @@ class MainActivity : AppCompatActivity() {
                 if(draft!=null && savedInstanceState.getLong("themeUser",0)==store.userId) {
                     putLong("resumeSettingsUser",store.userId ?: 0L);putBundle("settingsDraft",draft)
                 }
+                if (nav.currentDestination?.id==R.id.wordDefenseFragment && defense.canResume) {
+                    putLong("resumeDefenseUser",store.userId ?: 0L)
+                }
                 if (nav.currentDestination?.id==R.id.wordShooterFragment && games.canResume) {
                     putLong("resumeGameUser",store.userId ?: 0L)
                 }
@@ -135,6 +141,7 @@ class MainActivity : AppCompatActivity() {
         collections.load().getOrThrow()
         quizzes.syncPending().getOrThrow()
         games.syncPending().getOrThrow()
+        defense.syncPending().getOrThrow()
         learning.load().getOrThrow()
         notifications.syncPending()
     }

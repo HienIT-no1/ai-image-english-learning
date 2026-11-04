@@ -35,11 +35,17 @@ class SessionFragment : ScreenFragment() {
                         if(!isAdded || owner.lifecycle.currentState==androidx.lifecycle.Lifecycle.State.DESTROYED) return@launch
                         val controller=findNavController()
                         val settingsUser=arguments?.getLong("resumeSettingsUser",0L) ?: 0L
+                        val defenseUser=arguments?.getLong("resumeDefenseUser",0L) ?: 0L
                         val resumeUser=arguments?.getLong("resumeGameUser",0L) ?: 0L
                         if(settingsUser>0 && store.userId==settingsUser && (store.onboardingCompleted || store.isAdmin)) {
                             enter(R.id.homeFragment)
                             controller.navigate(R.id.profileFragment)
                             controller.navigate(R.id.settingsFragment,arguments?.getBundle("settingsDraft"))
+                        } else if(defenseUser>0 && store.userId==defenseUser && activity.defense.canResume && (store.onboardingCompleted || store.isAdmin)) {
+                            enter(R.id.homeFragment)
+                            controller.navigate(R.id.gamesFragment)
+                            controller.navigate(R.id.defenseSetupFragment)
+                            controller.navigate(R.id.wordDefenseFragment)
                         } else if (resumeUser>0 && store.userId==resumeUser && games.canResume && (store.onboardingCompleted || store.isAdmin)) {
                             // Restore only this validated user's game, after the normal account check.
                             enter(R.id.homeFragment)

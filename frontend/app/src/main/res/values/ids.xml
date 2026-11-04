@@ -47,4 +47,7 @@
     <item name="reminder_time" type="id" />
     <item name="reminder_preview" type="id" />
     <item name="settings_save" type="id" />
+ <item name="defense_arena" type="id" />
+ <item name="defense_slow" type="id" />
+ <item name="defense_pause" type="id" />
 </resources>

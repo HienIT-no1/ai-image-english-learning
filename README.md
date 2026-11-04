@@ -696,3 +696,88 @@ chọn ảnh → YOLO → Cloudinary → PostgreSQL → lưu từ → lịch s�
 và snapshot thiếu cache vẫn đọc được. API chạy thật trả 401 với capture thiếu/sai token; computer mouse có
 ID riêng và nghĩa catalog khớp kết quả AI. Migration 0008 đã chạy trên máy này, giữ mouse động vật và dữ liệu học cũ.
 Ảnh/tài khoản thử được dọn; dữ liệu ứng dụng chỉ thêm từ/meaning/liên kết chủ đề computer mouse theo migration.
+
+
+## 15. Phòng tuyến từ vựng — trò chơi bốn đường
+
+Trang chủ hoặc Luyện tập → **Trò chơi → Phòng tuyến từ vựng**.
+Trò Bắn chữ vẫn có nguồn từ và lượt tiếp tục riêng. Phòng tuyến chơi được cả dọc/ngang;
+xoay ngang để chiến trường nằm bên trái, bàn phím bên phải.
+
+1. Chọn **Luyện gõ** (hiện tiếng Anh) hoặc **Luyện nhớ** (nghĩa Việt và ô trống).
+2. Chọn ngẫu nhiên, chủ đề, từ đã lưu, từ khó hoặc kết hợp. Bộ ít hơn 20 từ chơi màn ngắn hơn.
+3. Bấm **Tiếp tục**, chạm quái để ngắm hoặc dùng mục tiêu tự động. Mỗi chữ đúng bắn một viên đạn,
+   hoàn thành từ sẽ hạ quái. Khoảng trắng/gạch nối/dấu nháy được điền sẵn.
+4. Gõ sai chỉ có hiệu ứng, giữ chữ đã đúng, combo và lượt. Quái lọt căn cứ mới ngắt combo;
+   cho lọt 3 từ, lần thứ 4 thua ngay. Kết quả các từ đã xử lý vẫn được ghi vào lịch học.
+5. Hạ 5 từ liên tiếp bắt đầu combo; hiệu ứng đạn tăng theo chuỗi. Mỗi từ hạ được tích 20% năng lượng,
+   đủ 100% bấm **Làm chậm** để giảm tốc quái còn 40% trong 6 giây. Năng lượng và thời gian còn lại được lưu khi tạm dừng.
+6. Quái thường có tốc độ vừa; quái chạy nhanh mang từ ngắn; quái giáp mang từ dài và đi chậm.
+   Có bốn đường, tối đa bốn quái cùng lúc. Tốc độ di chuyển của mọi loại quái đã giảm 15% so với bản ba đường. Sau mỗi nhóm 5 từ, chờ xử lý hết quái rồi nghỉ 3 giây.
+7. Mỗi màn thứ 5 có boss ở cuối: tối đa 3 từ cuối là 3 lớp giáp. Hạ lớp trước để chuyển từ kế tiếp
+   tại cùng vị trí boss. Nếu một lớp lọt căn cứ, tính một lượt bỏ lỡ và lớp kế tiếp vào lại từ đầu.
+8. Vượt màn: loại từ đúng khỏi phần còn lại; màn sau mang từ bỏ lỡ và từ mới, tối đa 20 từ.
+   Thua: chơi lại đúng bộ từ và số màn. Tốc độ tăng đến trần ở màn 7, không tăng vô hạn.
+9. Mỗi 5 màn vượt thành công có điểm nghỉ: chọn **Kết thúc chặng** hoặc **Màn tiếp theo**.
+   Phòng tuyến ngẫu nhiên cũng có thể tiếp tục qua màn 5 nếu còn từ. Hết bộ từ thì chặng tự hoàn thành.
+10. Tạm dừng/chuyển app sẽ dừng đồng hồ. **Tiếp tục phòng tuyến** phục hồi trên cùng máy/tài khoản,
+    kể cả sau xoay màn hình hoặc đóng/mở. Khi mất mạng ở cuối màn, bấm Thử lại sau khi có mạng.
+
+Kết quả từng từ gửi về server. PostgreSQL ghi `game_runs.game_type=WORD_DEFENSE`,
+`learning_mode=TYPING/RECALL`, bộ từ chụp lại trong `game_rounds`, và `learning_events(kind=GAME)`.
+Điểm/combo do backend tính: mỗi từ 100 điểm + `25 × floor(combo/5)`; chữ sai không trừ điểm.
+Retry cùng kết quả không tăng lượt học/lịch ôn lần nữa, gửi kết quả khác đã chốt bị từ chối.
+Game dùng cùng thuật toán lịch ôn của Flashcard/Quiz, không tự gán MASTERED cho từ chỉ vì chơi đúng.
+Đây là trò luyện tập; chưa có xác thực thời gian trận hay chống gian lận để dùng làm bảng xếp hạng thi đấu.
+
+### Cập nhật máy sau khi kéo code
+
+Từ thư mục `backend`:
+
+```powershell
+.\.venv\Scripts\python.exe -m alembic upgrade head
+```
+
+Migration `0009_word_defense` bổ sung loại game và cột chế độ luyện, giữ toàn bộ lượt/điểm Bắn chữ cũ.
+Không import database lại. Database trống có thể chạy `seed_game.py` như mục 12 để có bộ từ thử.
+Khởi động backend như mục 12. Android Studio mở `frontend`, chạy app, nối thiết bị:
+
+```powershell
+& "D:\PhanMem\AndroidStudioSDK\platform-tools\adb.exe" reverse tcp:8000 tcp:8000
+```
+
+### API, file và kiểm thử
+
+Tất cả API Phòng tuyến cần Bearer token, kiểm tra đúng user và đúng loại game:
+
+| API | Chức năng |
+|---|---|
+| `POST /games/word-defense` | Tạo/phục hồi theo UUID, source, topic_id và learning_mode |
+| `GET /games/word-defense/{run_id}` | Lượt và màn hiện tại |
+| `POST /games/word-defense/{run_id}/rounds/{round_id}/finish` | Kiểm tra kết quả, chấm điểm và ghi lịch học một lần |
+| `POST /games/word-defense/{run_id}/rounds/{round_id}/next` | Màn tiếp/chơi lại, gửi lại không nhảy màn |
+| `POST /games/word-defense/{run_id}/complete` | Kết thúc chặng ở điểm nghỉ sau mỗi 5 màn; gửi lại an toàn |
+
+- Android: `game/WordDefenseEngine.kt`, `ui/WordDefenseView.kt`, `ui/DefenseScreens.kt`.
+- `GameRepository` dùng chung cơ chế retry nhưng lưu `active_defense`, `pending_defense_finish`,
+  `local_defense_state` riêng theo tài khoản. Session được kiểm tra lại trước khi phục hồi.
+- Backend: `game_service.py`, `routers/games.py`, migration `0009_word_defense.py`.
+- `tests/test_defense_flow.py`: quyền truy cập/loại game, hai chế độ, nguồn từ, transaction, retry đồng thời,
+  combo/tiến độ/lịch ôn, lần bỏ lỡ thứ 4, chuyển màn, checkpoint qua màn 5, migration giữ game cũ.
+- `WordDefenseEngineTest.kt`: 11 bài kiểm thử luật gõ, bốn đường, kỹ năng, boss, pause/snapshot,
+  đổi mục tiêu, khoảng nghỉ, trần tốc độ, dấu cách và trạng thái hỏng.
+
+Chạy `python -m pytest -q` trong backend và `gradlew.bat :app:testDebugUnitTest :app:assembleDebug`
+trong frontend theo môi trường đã hướng dẫn ở trên.
+
+Kiểm tra ngày **04/11/2026**: **53 backend tests, 25 Kotlin unit tests và build debug đều qua**.
+Đã cài APK và kiểm tra trên emulator: hai chế độ luyện, bộ từ đã lưu/từ khó, bàn phím trong app,
+combo 20, kỹ năng làm chậm, mất mạng rồi gửi lại kết quả không trùng lượt học, màn tiếp loại từ đúng,
+tạm dừng/đóng mở/xoay màn hình, lần lọt căn cứ thứ 4 và chơi lại đúng bộ từ.
+Bốn màn đầu của lượt kiểm tra boss được chuẩn bị qua API; màn 5 được chơi trong Android,
+gồm boss ba lớp và kết thúc chặng tại điểm nghỉ. Migration đã chạy trên database máy này.
+Tài khoản và dữ liệu thử được dọn; số bản ghi của 17 bảng ứng dụng khớp trước khi kiểm thử.
+
+Sau điều chỉnh thành **4 đường**, đã chạy lại **26 Kotlin unit tests và build APK: đều qua**.
+Bài kiểm thử mới đối chiếu mức giảm tốc 15% cho quái thường, chạy nhanh, giáp và boss.
+Emulator xác nhận sinh đủ 4 đường, chọn/gõ quái đường thứ tư, hiển thị cả dọc/ngang và giữ chữ đã gõ khi xoay.

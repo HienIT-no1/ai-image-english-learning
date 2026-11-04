@@ -100,6 +100,15 @@ class LearningStore(private val context: Context) {
     var localGameState: String?
         get() = prefs.getString("local_game_state",null)
         set(value) { prefs.edit().putString("local_game_state",value).apply() }
+    var activeDefense: String?
+        get() = prefs.getString("active_defense",null)
+        set(value) { prefs.edit().putString("active_defense",value).apply() }
+    var pendingDefenseFinish: String?
+        get() = prefs.getString("pending_defense_finish",null)
+        set(value) { prefs.edit().putString("pending_defense_finish",value).apply() }
+    var localDefenseState: String?
+        get() = prefs.getString("local_defense_state",null)
+        set(value) { prefs.edit().putString("local_defense_state",value).apply() }
     var activeQuiz: String?
         get() = prefs.getString("active_quiz",null)
         set(value) { prefs.edit().putString("active_quiz",value).apply() }

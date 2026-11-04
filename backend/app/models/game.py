@@ -12,6 +12,7 @@ class GameRun(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.user_id", ondelete="CASCADE"))
     client_session_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True))
     game_type: Mapped[str] = mapped_column(String(30), server_default="WORD_SHOOTER")
+    learning_mode: Mapped[str] = mapped_column(String(10), server_default="RECALL")
     source: Mapped[str] = mapped_column(String(20))
     topic_id: Mapped[int | None] = mapped_column(BigInteger)
     pool: Mapped[list] = mapped_column(JSONB)
@@ -20,7 +21,8 @@ class GameRun(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "client_session_id", name="uq_game_user_session"),
         CheckConstraint("source IN ('RANDOM','TOPIC','SAVED','DIFFICULT','REVIEW')", name="game_runs_source_check"),
-        CheckConstraint("game_type = 'WORD_SHOOTER'", name="game_runs_type_check"),
+        CheckConstraint("game_type IN ('WORD_SHOOTER','WORD_DEFENSE')", name="game_runs_type_check"),
+        CheckConstraint("learning_mode IN ('TYPING','RECALL')", name="game_runs_mode_check"),
     )
 
 class GameRound(Base):

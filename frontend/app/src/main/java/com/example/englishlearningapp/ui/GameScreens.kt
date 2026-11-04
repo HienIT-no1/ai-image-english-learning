@@ -39,6 +39,7 @@ class GamesFragment : ScreenFragment() {
     }
     override fun render() {
         header("CHƠI ĐỂ NHỚ","Trò chơi","Chọn trò chơi và bộ từ bạn muốn chinh phục.",true)
+        tile("🛡", "Phòng tuyến từ vựng", "4 đường • Luyện gõ / Luyện nhớ • Boss và làm chậm", Palette.green) { go(R.id.defenseSetupFragment) }
         val hero=column(color=Palette.elevated,padding=22)
         text("✦  BẮN CHỮ",24,Palette.orange,true,hero)
         text("Nhìn nghĩa, nhớ từ, bắn từng chữ cái!",16,parent=hero)

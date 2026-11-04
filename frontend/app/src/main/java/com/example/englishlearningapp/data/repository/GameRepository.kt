@@ -10,34 +10,42 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class GameRepository(private val api: ApiService,private val store: LearningStore,
-    private val learning: LearningRepository) {
+    private val learning: LearningRepository, private val gameType: String = "WORD_SHOOTER") {
+    private val path get() = if(gameType=="WORD_DEFENSE") "word-defense" else "word-shooter"
+    private var active: String?
+        get() = if(gameType=="WORD_DEFENSE") store.activeDefense else store.activeGame
+        set(value) { if(gameType=="WORD_DEFENSE") store.activeDefense=value else store.activeGame=value }
+    private var pending: String?
+        get() = if(gameType=="WORD_DEFENSE") store.pendingDefenseFinish else store.pendingGameFinish
+        set(value) { if(gameType=="WORD_DEFENSE") store.pendingDefenseFinish=value else store.pendingGameFinish=value }
+    private fun clearLocal() { if(gameType=="WORD_DEFENSE") store.localDefenseState=null else store.localGameState=null }
     private val gson=Gson()
     private val mutex=Mutex()
-    val canResume get() = store.activeGame!=null
+    val canResume get() = active!=null
     private fun token()=store.token ?: error("Hãy đăng nhập để chơi.")
     private fun check(expected: String) { if (store.token!=expected) throw CancellationException("Session changed") }
     private suspend fun flush(expected: String) {
-        val pending=store.pendingGameFinish?.let { gson.fromJson(it,PendingGameFinish::class.java) } ?: return
-        api.finishGame(pending.runId,pending.roundId,pending.request,"Bearer $expected").requireData()
-        check(expected);store.pendingGameFinish=null
+        val queued=pending?.let { gson.fromJson(it,PendingGameFinish::class.java) } ?: return
+        api.finishGame(queued.runId,queued.roundId,queued.request,"Bearer $expected",path).requireData()
+        check(expected);pending=null
         learning.load();check(expected)
     }
     suspend fun syncPending(): Result<Unit> = apiResult {
         val expected=token();mutex.withLock { check(expected);flush(expected) }
     }
-    suspend fun start(source: String?=null,topicId: Long?=null): Result<GameRunDto> = apiResult {
+    suspend fun start(source: String?=null,topicId: Long?=null,learningMode: String="RECALL"): Result<GameRunDto> = apiResult {
         val expected=token()
         mutex.withLock {
             check(expected)
+            flush(expected)
             val request=if(source==null) {
-                store.activeGame?.let { gson.fromJson(it,GameStartRequest::class.java) } ?: error("Chưa có lượt chơi để tiếp tục.")
+                active?.let { gson.fromJson(it,GameStartRequest::class.java) } ?: error("Chưa có lượt chơi để tiếp tục.")
             } else {
-                GameStartRequest(UUID.randomUUID().toString(),source,topicId).also {
-                    store.activeGame=gson.toJson(it);store.localGameState=null
+                GameStartRequest(UUID.randomUUID().toString(),source,topicId,if(gameType=="WORD_DEFENSE") learningMode else null).also {
+                    active=gson.toJson(it);clearLocal()
                 }
             }
-            flush(expected)
-            val result=api.startGame(request,"Bearer $expected").requireData()
+            val result=api.startGame(request,"Bearer $expected",path).requireData()
             check(expected);result
         }
     }
@@ -45,10 +53,10 @@ class GameRepository(private val api: ApiService,private val store: LearningStor
         val expected=token()
         val result=mutex.withLock {
             check(expected)
-            val pending=PendingGameFinish(run.runId,run.round.roundId,request)
-            store.pendingGameFinish=gson.toJson(pending)
-            val response=api.finishGame(pending.runId,pending.roundId,request,"Bearer $expected").requireData()
-            check(expected);store.pendingGameFinish=null;response
+            val queued=PendingGameFinish(run.runId,run.round.roundId,request)
+            pending=gson.toJson(queued)
+            val response=api.finishGame(queued.runId,queued.roundId,request,"Bearer $expected",path).requireData()
+            check(expected);pending=null;response
         }
         learning.load();check(expected);result
     }
@@ -56,8 +64,16 @@ class GameRepository(private val api: ApiService,private val store: LearningStor
         val expected=token()
         mutex.withLock {
             check(expected);flush(expected)
-            val response=api.nextGame(run.runId,run.round.roundId,"Bearer $expected").requireData()
-            check(expected);store.localGameState=null;response
+            val response=api.nextGame(run.runId,run.round.roundId,"Bearer $expected",path).requireData()
+            check(expected);clearLocal();response
+        }
+    }
+    suspend fun complete(run: GameRunDto): Result<GameRunDto> = apiResult {
+        val expected=token()
+        mutex.withLock {
+            check(expected);flush(expected)
+            val response=api.completeDefense(run.runId,"Bearer $expected").requireData()
+            check(expected);response
         }
     }
 }

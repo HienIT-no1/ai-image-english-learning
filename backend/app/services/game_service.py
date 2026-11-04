@@ -25,8 +25,8 @@ from app.schemas.game import GameStart, GameFinish, GameResponse, GameRoundRespo
 ROUND_SIZE = 20
 RANDOM_STAGES = 5
 
-def owned(db: Session, user_id: int, run_id: int, lock=False):
-    query = select(GameRun).where(GameRun.run_id==run_id,GameRun.user_id==user_id)
+def owned(db: Session, user_id: int, run_id: int, lock=False, game_type="WORD_SHOOTER"):
+    query = select(GameRun).where(GameRun.run_id==run_id,GameRun.user_id==user_id,GameRun.game_type==game_type)
     if lock: query=query.with_for_update()
     run=db.scalar(query)
     if run is None: raise HTTPException(404,"Game not found")
@@ -43,7 +43,9 @@ def response(db, run, current=None):
     history=rounds(db,run)
     stage=current or history[-1]
     solved=solved_ids(history)
-    return GameResponse(run_id=run.run_id,source=run.source,topic_id=run.topic_id,
+    return GameResponse(run_id=run.run_id,game_type=run.game_type,learning_mode=run.learning_mode,
+        checkpoint=run.game_type=="WORD_DEFENSE" and stage.status=="PASSED" and stage.stage%5==0 and run.completed_at is None,
+        source=run.source,topic_id=run.topic_id,
         pool_count=len(run.pool),remaining_count=sum(w['vocabulary_id'] not in solved for w in run.pool),
         completed=run.completed_at is not None,total_score=sum(r.score for r in history),
         round=GameRoundResponse(round_id=stage.round_id,stage=stage.stage,words=stage.words,
@@ -87,23 +89,24 @@ def pool_for(db, user, data):
     if not pool: raise HTTPException(400,"No playable words in this source")
     return pool
 
-def start(db: Session,user: User,data: GameStart):
+def start(db: Session,user: User,data: GameStart,game_type="WORD_SHOOTER"):
+    mode=getattr(data,"learning_mode","RECALL")
     run=db.scalar(select(GameRun).where(GameRun.user_id==user.user_id,GameRun.client_session_id==data.client_session_id))
     if run is None:
         db.execute(insert(GameRun).values(user_id=user.user_id,client_session_id=data.client_session_id,
-            source=data.source,topic_id=data.topic_id,pool=pool_for(db,user,data))
+            source=data.source,topic_id=data.topic_id,game_type=game_type,learning_mode=mode,pool=pool_for(db,user,data))
             .on_conflict_do_nothing(constraint='uq_game_user_session'))
         db.flush()
         run=db.scalar(select(GameRun).where(GameRun.user_id==user.user_id,GameRun.client_session_id==data.client_session_id).with_for_update())
         if not rounds(db,run):
             db.add(GameRound(run_id=run.run_id,sequence=1,stage=1,words=run.pool[:ROUND_SIZE]))
             db.flush()
-    if (run.source,run.topic_id)!=(data.source,data.topic_id):
+    if (run.source,run.topic_id,run.game_type,run.learning_mode)!=(data.source,data.topic_id,game_type,mode):
         raise HTTPException(409,"Game session key already used for different data")
     result=response(db,run);db.commit();return result
 
-def finish(db: Session,user: User,run_id: int,round_id: int,data: GameFinish):
-    run=owned(db,user.user_id,run_id,True)
+def finish(db: Session,user: User,run_id: int,round_id: int,data: GameFinish,game_type="WORD_SHOOTER"):
+    run=owned(db,user.user_id,run_id,True,game_type)
     stage=db.scalar(select(GameRound).where(GameRound.run_id==run_id,GameRound.round_id==round_id))
     if stage is None: raise HTTPException(404,"Round not found")
     payload=[r.model_dump(mode='json') for r in data.results]
@@ -131,21 +134,21 @@ def finish(db: Session,user: User,run_id: int,round_id: int,data: GameFinish):
     for item in payload:
         ident=item['vocabulary_id']
         if db.get(Vocabulary,ident) is None: raise HTTPException(409,"Game vocabulary changed; start a new game")
-        record_event(db,user.user_id,ident,uuid5(NAMESPACE_URL,f'word-shooter:{round_id}:{ident}'),
+        record_event(db,user.user_id,ident,uuid5(NAMESPACE_URL,f"{'word-shooter' if run.game_type=='WORD_SHOOTER' else 'word-defense'}:{round_id}:{ident}"),
             'GAME',item['outcome']=='SOLVED')
     stage.results=payload;stage.correct_count=correct;stage.missed_count=missed
     stage.max_combo=best;stage.score=score;stage.status='FAILED' if missed==4 else 'PASSED'
     stage.completed_at=datetime.now(timezone.utc)
     db.flush()
     solved=solved_ids(rounds(db,run))
-    if stage.status=='PASSED' and (len(solved)==len(run.pool) or (run.source=='RANDOM' and stage.stage>=RANDOM_STAGES)):
+    if stage.status=='PASSED' and (len(solved)==len(run.pool) or (run.game_type=='WORD_SHOOTER' and run.source=='RANDOM' and stage.stage>=RANDOM_STAGES)):
         run.completed_at=datetime.now(timezone.utc)
     progress=summary(db,user)
     user.current_streak=progress.current_streak;user.longest_streak=progress.longest_streak
     result=response(db,run,stage);db.commit();return result
 
-def advance(db: Session,user: User,run_id: int,round_id: int):
-    run=owned(db,user.user_id,run_id,True)
+def advance(db: Session,user: User,run_id: int,round_id: int,game_type="WORD_SHOOTER"):
+    run=owned(db,user.user_id,run_id,True,game_type)
     history=rounds(db,run)
     previous=next((r for r in history if r.round_id==round_id),None)
     if previous is None: raise HTTPException(404,"Round not found")
@@ -167,3 +170,13 @@ def advance(db: Session,user: User,run_id: int,round_id: int):
         number=previous.stage+1
     db.add(GameRound(run_id=run_id,sequence=previous.sequence+1,stage=number,words=words))
     db.flush();result=response(db,run);db.commit();return result
+
+
+def complete_defense(db: Session,user: User,run_id: int):
+    run=owned(db,user.user_id,run_id,True,"WORD_DEFENSE")
+    if run.completed_at is not None:return response(db,run)
+    current=rounds(db,run)[-1]
+    if current.status!="PASSED" or current.stage%5!=0:
+        raise HTTPException(409,"Finish a five-stage checkpoint before ending the chapter")
+    run.completed_at=datetime.now(timezone.utc)
+    result=response(db,run);db.commit();return result

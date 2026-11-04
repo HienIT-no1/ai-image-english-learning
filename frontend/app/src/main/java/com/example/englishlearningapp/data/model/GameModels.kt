@@ -5,7 +5,8 @@ import com.google.gson.annotations.SerializedName
 data class GameStartRequest(
     @SerializedName("client_session_id") val clientSessionId: String,
     val source: String,
-    @SerializedName("topic_id") val topicId: Long? = null
+    @SerializedName("topic_id") val topicId: Long? = null,
+    @SerializedName("learning_mode") val learningMode: String? = null
 )
 data class GameOutcomeDto(
     @SerializedName("vocabulary_id") val vocabularyId: Long,
@@ -34,5 +35,8 @@ data class GameRunDto(
     @SerializedName("remaining_count") val remainingCount: Int,
     val completed: Boolean,
     @SerializedName("total_score") val totalScore: Int,
-    val round: GameRoundDto
+    val round: GameRoundDto,
+    @SerializedName("game_type") val gameType: String = "WORD_SHOOTER",
+    @SerializedName("learning_mode") val learningMode: String = "RECALL",
+    val checkpoint: Boolean = false
 )

@@ -1,0 +1,10 @@
+.venv/
+data/
+runs/
+reports/
+weights/
+__pycache__/
+*.pyc
+*.log
+.env
+*.part

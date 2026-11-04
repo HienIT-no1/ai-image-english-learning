@@ -23,4 +23,6 @@
  <fragment android:id="@+id/wordShooterFragment" android:name="com.example.englishlearningapp.ui.WordShooterFragment" android:label="wordShooter" />
  <fragment android:id="@+id/notificationsFragment" android:name="com.example.englishlearningapp.ui.NotificationsFragment" android:label="notifications" />
  <fragment android:id="@+id/dueReviewFragment" android:name="com.example.englishlearningapp.ui.DueReviewFragment" android:label="dueReview" />
+ <fragment android:id="@+id/defenseSetupFragment" android:name="com.example.englishlearningapp.ui.DefenseSetupFragment" android:label="defenseSetup" />
+ <fragment android:id="@+id/wordDefenseFragment" android:name="com.example.englishlearningapp.ui.WordDefenseFragment" android:label="wordDefense" />
 </navigation>

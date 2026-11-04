@@ -14,6 +14,9 @@ class GameStart(BaseModel):
             raise ValueError("Choose a topic only for TOPIC mode")
         return self
 
+class DefenseStart(GameStart):
+    learning_mode: Literal["TYPING","RECALL"] = "RECALL"
+
 class GameOutcome(BaseModel):
     model_config = ConfigDict(extra="forbid")
     vocabulary_id: int = Field(gt=0)
@@ -38,6 +41,9 @@ class GameRoundResponse(BaseModel):
 
 class GameResponse(BaseModel):
     run_id: int
+    game_type: str
+    learning_mode: str
+    checkpoint: bool = False
     source: str
     topic_id: int | None
     pool_count: int
