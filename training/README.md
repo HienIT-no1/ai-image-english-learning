@@ -4,6 +4,8 @@ Công cụ độc lập với backend. Dữ liệu, môi trường Python và k�
 
 Tiến độ triển khai và kết quả pilot: [PROGRESS.md](PROGRESS.md). Danh mục dễ đọc: [catalog-review.md](catalog-review.md).
 
+Người dùng đã chọn chuyển sang **YOLOv8n trên Google Colab**, tạo run mới từ model v8n cũ. Hướng dẫn và notebook: [COLAB.md](COLAB.md), [train_yolov8n_colab.ipynb](train_yolov8n_colab.ipynb). Các lệnh Windows bên dưới là quy trình cũ; không tự khởi động lại training local.
+
 ## Lựa chọn dữ liệu
 
 `catalog.json` chứa 1.000 lớp có dữ liệu LVIS thật, định nghĩa và mã category nguồn. Danh mục ưu tiên các lớp phổ biến và 41 khái niệm cũ có liên kết nghĩa rõ ràng. Đây là danh mục khởi đầu: một số mục còn cần rà soát độ phù hợp với từ vựng cơ bản. Nhãn trùng chữ hoa/chữ thường không được dùng để tăng số lượng.
@@ -71,6 +73,8 @@ Với RTX 3060 Laptop 6 GiB, pilot bắt đầu batch 2, ảnh 416, workers 0. P
 ## Báo cáo và tiêu chí đưa vào ứng dụng
 
 Job đã khởi động có thể theo dõi bằng `.\training\.venv\Scripts\python.exe training/status.py`. Nếu một job đã train xong nhưng bước đánh giá bị ngắt, dùng `run_job.py --profile <profile> --name <name> --from-stage evaluate` để chấm lại mà không train lại. Báo cáo hoàn chỉnh không bị ghi đè; báo cáo chưa hoàn chỉnh có thể tiếp tục cùng tên.
+
+Trên máy này, `psutil.pid_exists` chạy trong sandbox có thể không thấy các tiến trình training chạy ngoài sandbox. Không suy ra job đã chết chỉ từ kết quả đó: kiểm tra timestamp log và xác minh PID/câu lệnh của job bằng kiểm tra chỉ đọc ngoài sandbox trước khi khởi động lại. Kết quả kiểm tra gần nhất được lưu tại `reports/monitor-state.json`.
 
 - `data/prepared/<profile>/coverage.json`: số box của từng nhãn và danh sách từ cũ thiếu.
 - `runs/<name>/provenance.json`: trọng số khởi tạo, phiên bản thư viện, tham số và hash manifest.
