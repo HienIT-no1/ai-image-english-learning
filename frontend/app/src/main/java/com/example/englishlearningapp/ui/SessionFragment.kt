@@ -50,6 +50,7 @@ class SessionFragment : ScreenFragment() {
                             // Restore only this validated user's game, after the normal account check.
                             enter(R.id.homeFragment)
                             controller.navigate(R.id.gamesFragment)
+                            controller.navigate(R.id.wordShooterSetupFragment)
                             controller.navigate(R.id.wordShooterFragment)
                         } else {
                             enter(if(store.isAdmin) R.id.adminFragment else if(store.onboardingCompleted) R.id.homeFragment else R.id.onboardingFragment)

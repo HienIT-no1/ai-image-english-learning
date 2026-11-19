@@ -25,6 +25,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.ensureActive
 
 class GamesFragment : ScreenFragment() {
+    override fun render() {
+        header("CHƠI ĐỂ NHỚ","Trò chơi","Chọn trò chơi để xem cách chơi và chọn bộ từ.",true)
+        tile("🛡", "Phòng tuyến từ vựng", "4 đường • Luyện gõ / Luyện nhớ • Boss và làm chậm", Palette.green) { go(R.id.defenseSetupFragment) }
+        tile("✦", "Bắn chữ", "Nhìn nghĩa, gõ từ • Combo • Tối đa 20 từ mỗi màn", Palette.orange) { go(R.id.wordShooterSetupFragment) }
+    }
+}
+
+class WordShooterSetupFragment : ScreenFragment() {
     private var loading=true
     private var failure: String?=null
     override fun onViewCreated(view: View,savedInstanceState: Bundle?) {
@@ -38,8 +46,7 @@ class GamesFragment : ScreenFragment() {
         }
     }
     override fun render() {
-        header("CHƠI ĐỂ NHỚ","Trò chơi","Chọn trò chơi và bộ từ bạn muốn chinh phục.",true)
-        tile("🛡", "Phòng tuyến từ vựng", "4 đường • Luyện gõ / Luyện nhớ • Boss và làm chậm", Palette.green) { go(R.id.defenseSetupFragment) }
+        header("NHÌN NGHĨA • GÕ TỪ","Bắn chữ","Chọn bộ từ và chinh phục chuỗi combo.",true)
         val hero=column(color=Palette.elevated,padding=22)
         text("✦  BẮN CHỮ",24,Palette.orange,true,hero)
         text("Nhìn nghĩa, nhớ từ, bắn từng chữ cái!",16,parent=hero)
@@ -257,7 +264,7 @@ class WordShooterFragment : Fragment() {
         } else {
             label(if(data.remainingCount==0) "Bạn đã hoàn thành toàn bộ bộ từ!" else "Đã xong 5 màn. Bạn có thể mở lượt mới hoặc ôn các từ còn khó.",15,Palette.muted,box)
         }
-        action("Về màn Trò chơi",box) { returnToGames() }
+        action("Về Bắn chữ",box) { returnToGames() }
     }
     private fun message(value: String) {
         layout?.removeAllViews();arena=null
@@ -265,7 +272,7 @@ class WordShooterFragment : Fragment() {
     }
     private fun error(value: String,retry: () -> Unit) {
         message(value)
-        layout?.let { action("Thử lại",it) { retry() };action("Về màn Trò chơi",it) { returnToGames() } }
+        layout?.let { action("Thử lại",it) { retry() };action("Về Bắn chữ",it) { returnToGames() } }
     }
     private fun exit() {
         if(engine==null || run?.round?.status!="PLAYING") { returnToGames();return }
@@ -273,11 +280,11 @@ class WordShooterFragment : Fragment() {
         MaterialAlertDialogBuilder(requireContext()).setTitle("Màn chơi đã tạm dừng")
             .setMessage("Bạn có thể tiếp tục ngay hoặc quay lại sau. Tiến độ trên máy này được giữ lại.")
             .setPositiveButton("Tiếp tục") { _,_ -> if(engine?.paused==true) togglePause() }
-            .setNegativeButton("Về trò chơi") { _,_ -> returnToGames() }.show()
+            .setNegativeButton("Về Bắn chữ") { _,_ -> returnToGames() }.show()
     }
     private fun returnToGames() {
         pause()
-        if(!findNavController().popBackStack(R.id.gamesFragment,false)) findNavController().navigate(R.id.gamesFragment)
+        if(!findNavController().popBackStack(R.id.wordShooterSetupFragment,false)) findNavController().navigate(R.id.wordShooterSetupFragment)
     }
     private fun label(value: String,size: Int,color: Int,parent: LinearLayout): TextView=TextView(requireContext()).apply {
         text=value;textSize=size.toFloat();setTextColor(color);setPadding(dp(4),dp(6),dp(4),dp(6))

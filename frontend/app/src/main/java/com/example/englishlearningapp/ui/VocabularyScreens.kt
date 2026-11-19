@@ -1,8 +1,12 @@
 package com.example.englishlearningapp.ui
 
 import android.os.Bundle
+import android.content.Context
+import android.text.TextUtils
+import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
+import androidx.core.view.doOnNextLayout
 import androidx.core.widget.doAfterTextChanged
 import com.example.englishlearningapp.R
 import com.example.englishlearningapp.data.model.RecognitionHistoryCodec
@@ -13,6 +17,8 @@ import kotlinx.coroutines.launch
 class WordsFragment : ScreenFragment() {
     private var query = ""
     private var filter = "saved"
+    private var page = 1
+    private val pageSize = 15
     private var loading = true
     private var failure: String? = null
     private var loadJob: Job? = null
@@ -36,8 +42,9 @@ class WordsFragment : ScreenFragment() {
         super.onCreate(state)
         query = state?.getString("query") ?: ""
         filter = state?.getString("filter") ?: arguments?.getString("topic") ?: "saved"
+        page = state?.getInt("page",1)?.coerceAtLeast(1) ?: 1
     }
-    override fun onSaveInstanceState(state: Bundle) { super.onSaveInstanceState(state); state.putString("query",query); state.putString("filter",filter) }
+    override fun onSaveInstanceState(state: Bundle) { super.onSaveInstanceState(state); state.putString("query",query); state.putString("filter",filter); state.putInt("page",page) }
     override fun render() {
         val topic = words.topics.firstOrNull { it.id == filter }
         header("BỘ SƯU TẬP CỦA BẠN",topic?.name ?: "Từ vựng", "Gom những khám phá nhỏ thành vốn từ của bạn.",topic != null)
@@ -51,7 +58,7 @@ class WordsFragment : ScreenFragment() {
             val chip = com.google.android.material.chip.Chip(requireContext()).apply {
                 text=label; isCheckable=true; isChecked=filter==id
                 setTextColor(Palette.white); chipBackgroundColor=android.content.res.ColorStateList.valueOf(if(filter==id) Palette.elevated else Palette.surface)
-                setOnClickListener { if (filter != id) { filter=id; hideKeyboard(); load() } }
+                setOnClickListener { if (filter != id) { filter=id; page=1; hideKeyboard(); load() } }
             }
             chips.addView(chip)
         }
@@ -60,15 +67,42 @@ class WordsFragment : ScreenFragment() {
         fun showList() {
             list.removeAllViews()
             val matches = words.search(query,filter,store.saved)
-            text("${matches.size} từ vựng",12,Palette.muted,parent=list)
+            val pageCount = ((matches.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+            page = page.coerceIn(1,pageCount)
+            val offset = (page - 1) * pageSize
+            text(if(matches.isEmpty()) "0 từ vựng" else "${offset + 1}–${minOf(offset + pageSize,matches.size)} / ${matches.size} từ vựng",12,Palette.muted,parent=list)
             if(matches.isEmpty()) {
                 text("Chưa có từ phù hợp",22,bold=true,parent=list)
                 text("Thử từ khóa khác hoặc khám phá chủ đề để lưu thêm từ.",14,Palette.muted,parent=list)
                 button("Khám phá chủ đề",parent=list) { go(R.id.topicsFragment) }
-            } else matches.forEach { wordRow(it,list) }
+            } else {
+                matches.drop(offset).take(pageSize).forEach { wordRow(it,list) }
+                if(pageCount > 1) {
+                    text("Trang $page / $pageCount",13,Palette.muted,parent=list,center=true)
+                    val pager = row(list)
+                    fun changePage(target: Int) {
+                        page=target;hideKeyboard();showList()
+                        list.doOnNextLayout {
+                            view?.findViewById<androidx.core.widget.NestedScrollView>(R.id.screen_scroll)
+                                ?.smoothScrollTo(0,list.top)
+                        }
+                    }
+                    button("‹ Trang trước",parent=pager,outlined=true) { changePage(page - 1) }.apply {
+                        isEnabled=page > 1
+                        layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply { marginEnd=dp(6) }
+                    }
+                    button("Trang sau ›",parent=pager,outlined=true) { changePage(page + 1) }.apply {
+                        isEnabled=page < pageCount
+                        layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply { marginStart=dp(6) }
+                    }
+                }
+            }
         }
         showList()
-        search.doAfterTextChanged { query=it.toString(); showList() }
+        search.doAfterTextChanged {
+            val updated=it.toString()
+            if(query != updated) { query=updated; page=1; showList() }
+        }
         button("Khám phá theo chủ đề",outlined=true) { go(R.id.topicsFragment) }
     }
 }
@@ -93,11 +127,43 @@ class TopicsFragment : ScreenFragment() {
         if (loading) { notice("Đang tải chủ đề…"); return }
         failure?.let { notice(it); button("Thử lại") { load() }; return }
         if (words.topics.isEmpty()) { notice("Chưa có chủ đề nào."); return }
-        words.topics.forEach { topic ->
-            tile(topic.symbol, topic.name, "${topic.vocabularyCount} từ vựng") {
-                go(R.id.wordsFragment, "topic" to topic.id)
+        words.topics.chunked(2).forEach { topics ->
+            val gridRow = row()
+            topics.forEachIndexed { index, topic ->
+                val card = SquareTopicCard(requireContext()).apply {
+                    orientation=LinearLayout.VERTICAL
+                    setPadding(dp(12),dp(12),dp(12),dp(12))
+                    background=rounded(Palette.surface,dp(20).toFloat())
+                    isClickable=true;isFocusable=true
+                    contentDescription="${topic.name}. ${topic.vocabularyCount} từ vựng"
+                    setOnClickListener { go(R.id.wordsFragment,"topic" to topic.id) }
+                }
+                gridRow.addView(card,LinearLayout.LayoutParams(0,-2,1f).apply {
+                    if(index == 0) marginEnd=dp(6) else marginStart=dp(6)
+                })
+                // Illustration area reserved for a topic image when uploads are available.
+                text(topic.symbol,42,parent=card,center=true).apply {
+                    gravity=Gravity.CENTER
+                    background=rounded(Palette.elevated,dp(12).toFloat(),Palette.elevated)
+                    importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    layoutParams=LinearLayout.LayoutParams(-1,0,1f).apply { bottomMargin=dp(8) }
+                }
+                text(topic.name,15,bold=true,parent=card,center=true).apply {
+                    maxLines=2;ellipsize=TextUtils.TruncateAt.END
+                    layoutParams=LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=dp(4) }
+                }
+                text("${topic.vocabularyCount} từ vựng",12,Palette.muted,parent=card,center=true).apply {
+                    layoutParams=LinearLayout.LayoutParams(-1,-2)
+                }
             }
+            if(topics.size == 1) gridRow.addView(View(requireContext()),LinearLayout.LayoutParams(0,0,1f).apply { marginStart=dp(6) })
         }
+    }
+}
+
+private class SquareTopicCard(context: Context) : LinearLayout(context) {
+    override fun onMeasure(widthMeasureSpec: Int,heightMeasureSpec: Int) {
+        super.onMeasure(widthMeasureSpec,View.MeasureSpec.makeMeasureSpec(View.MeasureSpec.getSize(widthMeasureSpec),View.MeasureSpec.EXACTLY))
     }
 }
 

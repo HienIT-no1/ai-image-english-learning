@@ -38,7 +38,7 @@ class DefenseSetupFragment: ScreenFragment() {
         val hero=column(color=Palette.elevated,padding=20)
         text("🛡  BỐN ĐƯỜNG • MỘT CĂN CỨ",18,Palette.green,true,hero)
         text("Quái thường • Chạy nhanh • Giáp • Boss 3 lớp từ",14,parent=hero)
-        if((requireActivity() as MainActivity).defense.canResume) button("Tiếp tục phòng tuyến",Palette.green,hero) { go(R.id.wordDefenseFragment) }
+        if((requireActivity() as MainActivity).defense.canResume) button("Tiếp tục / xem kết quả lượt trước",Palette.green,hero) { go(R.id.wordDefenseFragment) }
         section("Chọn cách luyện")
         button("${if(mode=="TYPING") "✓ " else ""}Luyện gõ • Hiện từ tiếng Anh",outlined=true) { mode="TYPING";refresh() }
         button("${if(mode=="RECALL") "✓ " else ""}Luyện nhớ • Nghĩa Việt và ô trống",outlined=true) { mode="RECALL";refresh() }
