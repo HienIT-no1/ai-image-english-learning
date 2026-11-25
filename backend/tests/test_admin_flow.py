@@ -53,7 +53,7 @@ def test_all_admin_routes_enforce_current_database_role(api):
     assert client.get("/users/me",headers=ha).json()["role"]=="ADMIN"
     assert client.get("/admin/summary",headers=ha).status_code==200
     users=client.get("/admin/users",headers=ha).json()
-    assert all(set(u)=={"user_id","username","email","full_name","role"} for u in users)
+    assert all(set(u)=={"user_id","username","email","full_name","role","is_locked"} for u in users)
     with engine.begin() as c: c.execute(text("UPDATE users SET role='USER' WHERE user_id=:u"),{"u":ident})
     assert client.get("/admin/summary",headers=ha).status_code==403
     assert client.get("/users/me",headers=ha).json()["role"]=="USER"
@@ -99,6 +99,52 @@ def test_word_edit_preserves_extra_meanings_and_examples(api):
     assert result.json()["meanings"][1]["definition_en"]=="additional definition"
     assert client.put(f"/admin/vocabularies/{cat}",headers=ha,json={"word":"cat","meaning_vi":"mèo"}).status_code==422
     assert client.get(f"/vocabularies/{cat}").json()["examples"][0]["sentence_en"]=="A cat."
+
+
+def test_admin_manages_all_meanings_and_examples_with_stable_ids(api):
+    client, engine, cat = api
+    _, headers = admin(client, engine)
+    original = client.get(f"/vocabularies/{cat}").json()
+    meaning_id = original["meanings"][0]["meaning_id"]
+    example_id = original["examples"][0]["example_id"]
+    payload = {
+        "word": "cat",
+        "meanings": [
+            {"meaning_id": meaning_id, "meaning_vi": "mèo nhà", "definition_en": "A pet cat"},
+            {"meaning_vi": "họ mèo", "definition_en": "A member of the cat family"},
+        ],
+        "examples": [
+            {"example_id": example_id, "sentence_en": "The cat is asleep.", "sentence_vi": "Con mèo đang ngủ."},
+            {"sentence_en": "A tiger is a cat."},
+        ],
+    }
+    path = f"/admin/vocabularies/{cat}"
+    first = client.put(path, headers=headers, json=payload)
+    assert first.status_code == 200
+    content = first.json()
+    assert content["meanings"][0]["meaning_id"] == meaning_id
+    assert content["examples"][0]["example_id"] == example_id
+    assert content["meanings"][1]["definition_en"] == "A member of the cat family"
+    assert content["examples"][0]["sentence_vi"] == "Con mèo đang ngủ."
+
+    other = client.post("/admin/vocabularies", headers=headers, json={
+        "word": "tiger", "meanings": [{"meaning_vi": "hổ"}], "examples": [{"sentence_en": "A tiger."}],
+    })
+    assert other.status_code == 201
+    foreign = other.json()
+    assert client.put(path, headers=headers, json=payload | {"meanings": foreign["meanings"]}).status_code == 409
+    assert client.put(path, headers=headers, json=payload | {"examples": foreign["examples"]}).status_code == 409
+    assert client.put(path, headers=headers, json=payload | {"meanings": [payload["meanings"][0]] * 2}).status_code == 409
+    assert client.put(path, headers=headers, json=payload | {"meanings": []}).status_code == 422
+    assert client.get(f"/vocabularies/{cat}").json() == content
+
+    last = client.put(path, headers=headers, json=payload | {"meanings": [content["meanings"][1]], "examples": []})
+    assert last.status_code == 200
+    assert last.json()["meanings"] == [content["meanings"][1]]
+    assert last.json()["examples"] == []
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT count(*) FROM vocabulary_meanings WHERE meaning_id=:id"), {"id": meaning_id}).scalar_one() == 0
+        assert connection.execute(text("SELECT count(*) FROM vocabulary_examples WHERE example_id=:id"), {"id": example_id}).scalar_one() == 0
 
 
 def test_admin_provisioning_hashes_password_and_never_promotes_existing_user(api):

@@ -52,7 +52,8 @@ def login(
 
     access_token = create_access_token(
         user_id=user.user_id,
-        username=user.username
+        username=user.username,
+        auth_version=user.auth_version
     )
 
     return {

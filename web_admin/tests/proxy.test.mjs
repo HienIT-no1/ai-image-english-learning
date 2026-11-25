@@ -27,7 +27,7 @@ await test('HTTP proxy contract', async t => {
     assert.equal(res.status,200); assert.match(await res.text(),/lang="vi"/);
     assert.equal(res.headers.get('x-content-type-options'),'nosniff');
     assert.match(res.headers.get('content-security-policy'),/script-src 'self'/);
-    for (const asset of ['app.js','api.js','styles.css']) assert.equal((await fetch(`${url}/${asset}`)).status,200);
+    for (const asset of ['app.js','api.js','quiz-admin.js','analytics-admin.js','styles.css']) assert.equal((await fetch(`${url}/${asset}`)).status,200);
   });
   await t.test('forwards bearer token and user pagination', async () => {
     const res = await fetch(`${url}/api/admin/users?offset=99&limit=100`,{headers:{Authorization:'Bearer test-token'}});
@@ -44,10 +44,37 @@ await test('HTTP proxy contract', async t => {
     const res = await fetch(`${url}/api/admin/vocabularies/2`,{method:'PUT',body:JSON.stringify({word:'pear'})});
     assert.equal(res.status,200); assert.equal(observed.method,'PUT');
   });
+  await t.test('forwards account detail, locks and confirmed deletion only on allowed methods', async () => {
+    for (const [route,method,body] of [
+      ['/admin/users/7','GET',undefined],
+      ['/admin/users/7/lock','PATCH',{is_locked:true}],
+      ['/admin/users/7/lock','PATCH',{is_locked:false}],
+      ['/admin/users/7','DELETE',{username:'learner'}],
+    ]) {
+      const res = await fetch(`${url}/api${route}`,{method,headers:{Authorization:'Bearer manager','Content-Type':'application/json'},body:body ? JSON.stringify(body) : undefined});
+      assert.equal(res.status,200); assert.equal(observed.method,method); assert.equal(observed.path,route);
+      assert.equal(observed.token,'Bearer manager');
+      if(body) assert.deepEqual(JSON.parse(observed.body),body);
+    }
+    for(const [route,method] of [['/admin/users/7','PUT'],['/admin/users/7/lock','GET'],['/admin/users/0','GET']]) {
+      assert.equal((await fetch(`${url}/api${route}`,{method})).status,404);
+    }
+    assert.equal((await fetch(`${url}/api/admin/users/7`,{method:'DELETE',headers:{Origin:'https://other.invalid'},body:'{}'})).status,403);
+  });
   await t.test('preserves backend authorization and conflict errors', async () => {
     let res = await fetch(`${url}/api/users/me`); assert.equal(res.status,403);
     res = await fetch(`${url}/api/admin/topics/9`,{method:'DELETE'});
     assert.equal(res.status,409); assert.equal((await res.json()).detail,'Topic still contains vocabulary');
+  });
+  await t.test('forwards read-only quiz and analytics routes with filters', async () => {
+    const paths = ['/admin/quizzes?status=COMPLETED', '/admin/quizzes/summary', '/admin/quizzes/23', '/admin/analytics/learning?days=7', '/admin/analytics/games?days=30&game_type=WORD_DEFENSE'];
+    for (const path of paths) {
+      const res = await fetch(`${url}/api${path}`,{headers:{Authorization:'Bearer test-token'}});
+      assert.equal(res.status,200);
+      assert.equal(observed.path,path);
+      assert.equal(observed.token,'Bearer test-token');
+      assert.equal((await fetch(`${url}/api${path}`,{method:'DELETE'})).status,404);
+    }
   });
   await t.test('rejects unrelated API routes, files and unsupported methods', async () => {
     for (const route of ['/api/database','/api/auth/register','/server.mjs','/package.json','/.env','/../backend/.env','/%2e%2e/backend/.env']) assert.equal((await fetch(url+route)).status,404,route);

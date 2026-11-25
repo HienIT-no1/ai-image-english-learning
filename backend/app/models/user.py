@@ -77,6 +77,8 @@ class User(Base):
     reminder_minutes: Mapped[int] = mapped_column(Integer,nullable=False,server_default="1200")
 
     role: Mapped[str] = mapped_column(String(10), nullable=False, server_default="USER")
+    is_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    auth_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
     __table_args__ = (
         CheckConstraint("reminder_minutes BETWEEN 0 AND 1439",name="users_reminder_minutes_check"),

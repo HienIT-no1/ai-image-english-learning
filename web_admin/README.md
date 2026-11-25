@@ -47,15 +47,29 @@ Máy chủ bind `127.0.0.1` theo mặc định. Đặt `HOST` để truy cập q
 | --- | --- | --- |
 | Đăng nhập | Đăng nhập, kiểm tra ADMIN từ hồ sơ | POST /auth/login, GET /users/me |
 | Tổng quan | Người dùng, quản trị viên, từ vựng, chủ đề, lượt kiểm tra hoàn thành; phân bố từ theo chủ đề | GET /admin/summary, GET /admin/topics |
-| Từ vựng | Tìm từ/nghĩa, lọc chủ đề, phân trang, chi tiết, thêm/sửa nghĩa và ví dụ chính, gán nhiều chủ đề | GET/POST /admin/vocabularies, PUT /admin/vocabularies/{id} |
+| Từ vựng | Tìm từ/nghĩa, lọc chủ đề, phân trang, thêm/sửa/xóa từng nghĩa và ví dụ, gán nhiều chủ đề | GET/POST /admin/vocabularies, PUT /admin/vocabularies/{id} |
 | Chủ đề | Tìm kiếm, phân trang, thêm/sửa, xác nhận xóa chủ đề rỗng | GET/POST /admin/topics, PUT/DELETE /admin/topics/{id} |
-| Người dùng | Xem, tìm kiếm và lọc vai trò trong nhóm đang tải | GET /admin/users?offset=...&limit=100 |
+| Người dùng | Xem, tìm kiếm, lọc vai trò; xem tiến độ; khóa/mở khóa và xóa tài khoản người học | GET /admin/users, GET /admin/users/{id}, PATCH /admin/users/{id}/lock, DELETE /admin/users/{id} |
+| Quản lý quiz | Lọc lượt làm bài, xem câu hỏi và câu trả lời, thống kê theo loại bài và loại câu | GET /admin/quizzes, GET /admin/quizzes/summary, GET /admin/quizzes/{id} |
+| Thống kê học tập | Người học hoạt động, lượt học, tỷ lệ đúng, từ khó và tỷ lệ quay lại | GET /admin/analytics/learning |
+| Thống kê trò chơi | Số lượt bắt đầu, điểm trung bình, màn vượt qua và từ hay bỏ lỡ theo trò chơi | GET /admin/analytics/games |
 
-Người dùng tải theo nhóm 99 bản ghi, lấy thêm 1 để xác định nhóm tiếp theo. Tìm kiếm/lọc chỉ áp dụng nhóm hiện tại và được ghi rõ trên giao diện. Các dữ liệu khác phân trang và lọc trên trình duyệt do API trả toàn bộ danh sách.
+Thống kê dùng ngày theo giờ Việt Nam. Lượt học lấy từ sự kiện Flashcard, Quiz và Game đã ghi nhận, gồm kết quả tự đánh giá Flashcard. Tỷ lệ quay lại ngày kế tiếp dùng những ngày đã quan sát trọn ngày kế tiếp. Điểm trung bình của game lấy tổng điểm các màn được chấm trong kỳ chia cho số lượt chơi có màn đã chấm. Thời điểm bắt đầu lượt chơi và thời điểm chấm màn có thể thuộc hai ngày khác nhau.
+
+Người dùng tải theo nhóm 99 bản ghi và lấy thêm 1 để xác định nhóm tiếp theo. Tìm kiếm và lọc chỉ áp dụng cho nhóm hiện tại. Từ vựng và chủ đề lọc trên trình duyệt. Lịch sử quiz lọc và phân trang trên backend, còn bảng tổng hợp quiz hiển thị toàn bộ lịch sử.
 
 Token giữ trong sessionStorage của tab, xóa khi đăng xuất hoặc backend trả 401/403. Backend kiểm tra quyền trên mọi API quản trị. Không lưu mật khẩu. Dữ liệu được escape khi hiển thị. Không có dữ liệu mẫu hoặc thao tác ghi khi mở trang; dữ liệu thay đổi khi lưu biểu mẫu hoặc xác nhận xóa.
 
-Backend chưa có xóa từ vựng, khóa/xóa người dùng, đổi vai trò, hay CRUD tài sản ảnh/âm thanh. Giao diện quản lý tài nguyên học tập trong phạm vi API hiện có. Sửa từ giữ nguyên nghĩa/ví dụ bổ sung; ví dụ chính đã có không thể xóa trắng theo ràng buộc backend.
+Khi sửa từ vựng, có thể quản lý từng nghĩa tiếng Việt, định nghĩa tiếng Anh, câu ví dụ và bản dịch. Mỗi từ cần giữ ít nhất một nghĩa. Thay đổi áp dụng khi bấm **Lưu thay đổi**. API vẫn nhận dạng dữ liệu sửa nghĩa và ví dụ chính từ các bản Android cũ.
+
+## Quản lý tài khoản người học
+
+Trước khi chạy phiên bản này, trong `backend` chạy `python -m alembic upgrade head` (migration `0010_user_management`), sau đó khởi động lại backend và server web.
+
+- Trạng thái tài khoản hiển thị Hoạt động / Đã khóa. Chỉ ADMIN được xem chi tiết hoặc quản lý tài khoản; chỉ tài khoản USER được khóa/xóa, tài khoản ADMIN được bảo vệ cả ở API.
+- Khóa giữ tiến độ nhưng chặn đăng nhập và mọi request có xác thực của người học. Mỗi lần đổi trạng thái thu hồi phiên cũ; mở khóa yêu cầu đăng nhập mới. Request đã được xác thực và đang xử lý trước lúc khóa có thể hoàn tất.
+- Xóa yêu cầu nhập đúng username và xác nhận. API kiểm tra lại username trước khi xóa. Database xóa dây chuyền bộ sưu tập, tiến độ, sự kiện học, quiz/đáp án, game/màn chơi, thông báo và bản ghi ảnh; giữ kho từ và dữ liệu người khác. Đây là xóa vĩnh viễn. File ảnh đã tải lên Cloudinary chưa được xóa tự động vì database hiện chưa lưu public_id; dữ liệu cục bộ trên thiết bị không bị xóa từ xa.
+- Nút Tiến độ hiển thị CEFR, ngày tham gia, mục tiêu/ngày, streak, từ đã lưu/đã nhớ/đến hạn, quiz hoàn thành, số lượt game và điểm, hoạt động 7 ngày theo UTC+7, số lần đúng/sai và lịch ôn từng từ. Chưa có dữ liệu sẽ hiển thị trạng thái trống.
 
 ## Kiểm tra
 

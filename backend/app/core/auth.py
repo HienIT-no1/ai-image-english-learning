@@ -46,6 +46,9 @@ def get_current_user(
     if user is None:
         raise credentials_exception
 
+    if user.is_locked or payload.get("ver", 0) != user.auth_version:
+        raise credentials_exception
+
     return user
 
 def get_current_admin(user: User = Depends(get_current_user)) -> User:
@@ -76,7 +79,10 @@ def get_optional_current_user(
         user_id = payload.get("sub")
         if user_id is None:
             return None
-        return db.get(User, int(user_id))
+        user = db.get(User, int(user_id))
+        if user is None or user.is_locked or payload.get("ver", 0) != user.auth_version:
+            return None
+        return user
     except Exception:
         return None
 

@@ -8,6 +8,8 @@ const assets = new Map([
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/api.js', ['api.js', 'text/javascript; charset=utf-8']],
+  ['/analytics-admin.js', ['analytics-admin.js', 'text/javascript; charset=utf-8']],
+  ['/quiz-admin.js', ['quiz-admin.js', 'text/javascript; charset=utf-8']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
 ]);
 export function createAdminServer({ backend = process.env.BACKEND_URL || 'http://127.0.0.1:8000' } = {}) {
@@ -30,14 +32,24 @@ export function createAdminServer({ backend = process.env.BACKEND_URL || 'http:/
         const allowed = new Map([
           ['/auth/login', ['POST']], ['/users/me', ['GET']], ['/admin/summary', ['GET']],
           ['/admin/users', ['GET']], ['/admin/topics', ['GET', 'POST']], ['/admin/vocabularies', ['GET', 'POST']],
+          ['/admin/quizzes', ['GET']], ['/admin/quizzes/summary', ['GET']],
+          ['/admin/analytics/learning', ['GET']], ['/admin/analytics/games', ['GET']],
         ]);
-        const methods = allowed.get(route) || (/^\/admin\/topics\/[1-9]\d*$/.test(route) ? ['PUT', 'DELETE'] : /^\/admin\/vocabularies\/[1-9]\d*$/.test(route) ? ['PUT'] : []);
+        const methods = allowed.get(route) || (
+          /^\/admin\/topics\/[1-9]\d*$/.test(route) ? ['PUT', 'DELETE'] :
+          /^\/admin\/vocabularies\/[1-9]\d*$/.test(route) ? ['PUT'] :
+          /^\/admin\/users\/[1-9]\d*\/lock$/.test(route) ? ['PATCH'] :
+          /^\/admin\/users\/[1-9]\d*$/.test(route) ? ['GET', 'DELETE'] :
+          /^\/admin\/quizzes\/[1-9]\d*$/.test(route) ? ['GET'] : []
+        );
         if (!methods.includes(req.method)) return send(404, 'API route not available');
         if (req.headers.origin && req.headers.origin !== `http://${req.headers.host}` && req.headers.origin !== `https://${req.headers.host}`) return send(403, 'Cross-origin request rejected');
+        const isVocabularyWrite = route.startsWith('/admin/vocabularies') && ['POST', 'PUT'].includes(req.method);
+        const maxBodySize = (isVocabularyWrite ? 3 * 1024 : 128) * 1024;
         const chunks = []; let size = 0;
         for await (const chunk of req) {
           size += chunk.length;
-          if (size > 128 * 1024) return send(413, 'Request too large');
+          if (size > maxBodySize) return send(413, 'Request too large');
           chunks.push(chunk);
         }
         const headers = { accept: 'application/json' };

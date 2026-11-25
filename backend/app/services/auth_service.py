@@ -75,4 +75,7 @@ def login_user(
             detail="Invalid username or password"
         )
 
+    if user.is_locked:
+        raise HTTPException(status_code=403, detail="Account is locked")
+
     return user

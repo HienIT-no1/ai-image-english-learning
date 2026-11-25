@@ -1,4 +1,6 @@
 import { request } from './api.js';
+import { analyticsPage } from './analytics-admin.js';
+import { quizAdminPage } from './quiz-admin.js';
 const app = document.querySelector('#app'), dialog = document.querySelector('#editor');
 const paths = {
   book: '<path d="M12 7c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V6c-3-1-6-1-9 1Z"/><path d="M12 7v14M6 10h3M15 10h3M6 13h3M15 13h3"/>',
@@ -19,9 +21,16 @@ const icon = name => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">$
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
 const num = value => new Intl.NumberFormat('vi-VN').format(value ?? 0);
 const logo = `<div class="logo"><span class="logo-mark">${icon('book')}</span><span>LENLEARN<small>ADMIN WORKSPACE</small></span></div>`;
-const titles = { dashboard: 'Tổng quan', vocabulary: 'Từ vựng', topics: 'Chủ đề', users: 'Người dùng' };
+const titles = {
+  dashboard: 'Tổng quan', vocabulary: 'Từ vựng', topics: 'Chủ đề', users: 'Người dùng',
+  quizzes: 'Quản lý quiz', learning: 'Thống kê học tập', games: 'Thống kê trò chơi',
+};
+const analyticsSettings = {
+  learning: { days: '30', metric: 'active_learners' },
+  games: { days: '30', metric: 'game_runs', gameType: '' },
+};
 const state = { token: sessionStorage.getItem('admin_token') || '', profile: null, page: 'dashboard', data: null, query: '', filter: '', pagination: 1, userOffset: 0, userHasNext: false, busy: false, loadId: 0 };
-let toastTimer, pendingEditor = '';
+let toastTimer, pendingEditor = '', dialogVersion = 0;
 
 function toast(message) {
   const el = document.querySelector('#toast');
@@ -133,7 +142,7 @@ function shell() {
         <nav class="nav" aria-label="Điều hướng chính">
           ${Object.entries(titles).map(([key, label], i) => `
             <a href="#${key}" ${key === state.page ? 'class="active" aria-current="page"' : ''}>
-              ${icon(['grid','book','folder','users'][i])}
+              ${icon(['grid','book','folder','users','check','grid','check'][i])}
               <span>${label}</span>
             </a>
           `).join('')}
@@ -184,7 +193,10 @@ function head() {
     dashboard: 'Nội dung học tập và hoạt động ứng dụng, trong một góc nhìn tổng thể.',
     vocabulary: 'Xây dựng và chăm chút kho từ vựng tiếng Anh sinh động cho người học.',
     topics: 'Sắp xếp nội dung theo từng chủ đề học tập trực quan và gần gũi.',
-    users: 'Tra cứu danh sách tài khoản, vai trò và trạng thái người dùng trong hệ thống.'
+    users: 'Tra cứu danh sách tài khoản, vai trò và trạng thái người dùng trong hệ thống.',
+    quizzes: 'Tra cứu lượt làm bài và xem người học thường trả lời sai ở đâu.',
+    learning: 'Theo dõi hoạt động học, tỷ lệ đúng, tỷ lệ quay lại và các từ khó.',
+    games: 'Theo dõi lượt chơi, điểm, màn vượt qua và những từ thường bị bỏ lỡ.',
   };
   return `
     <div class="page-head">
@@ -209,6 +221,15 @@ function bindHead() {
 async function load() {
   if (!state.token) return;
   const id = ++state.loadId, main = document.querySelector('#main');
+  const page = state.page;
+  if (page === 'quizzes' || Object.hasOwn(analyticsSettings, page)) {
+    main.innerHTML = `${head()}<div id="admin-report"></div>`;
+    bindHead();
+    const report = main.querySelector('#admin-report');
+    if (page === 'quizzes') await quizAdminPage(report, api);
+    else await analyticsPage(report, api, page, analyticsSettings[page]);
+    return id === state.loadId && Boolean(state.token);
+  }
   main.innerHTML = `${head()}<div class="panel"><div class="loading" role="status"><span class="spinner"></span>Đang tải dữ liệu…</div></div>`;
   document.querySelector('#refresh').disabled = true;
   const create = document.querySelector('#create');
@@ -246,7 +267,7 @@ async function load() {
 function render() {
   const main = document.querySelector('#main');
   if (!main) return;
-  main.innerHTML = head() + (state.page === 'dashboard' ? dashboard() : state.page === 'users' ? '<div class="notice">Danh sách người dùng chỉ hỗ trợ tra cứu. Quyền quản trị được cấp từ công cụ phía máy chủ.</div>' + listShell() : listShell()) + `<footer class="footer"><span>LENLEARN · Không gian quản trị nội dung</span><span>Dữ liệu từ backend · ${escape(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }))}</span></footer>`;
+  main.innerHTML = head() + (state.page === 'dashboard' ? dashboard() : state.page === 'users' ? '<div class="notice">Xem tiến độ, khóa/mở khóa hoặc xóa tài khoản người học. Tài khoản quản trị được bảo vệ khỏi khóa và xóa.</div>' + listShell() : listShell()) + `<footer class="footer"><span>LENLEARN · Không gian quản trị nội dung</span><span>Dữ liệu từ backend · ${escape(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }))}</span></footer>`;
   bindHead();
 
   if (state.page === 'dashboard') {
@@ -421,7 +442,7 @@ function renderRows() {
         </td>
       </tr>`).join('')}</tbody></table></div>`;
   } else {
-    content = `<div class="table-wrap"><table><thead><tr><th>ID</th><th>Người dùng</th><th>Email</th><th>Vai trò</th></tr></thead><tbody>${rows.map(u => `
+    content = `<div class="table-wrap"><table><thead><tr><th>ID</th><th>Người dùng</th><th>Email</th><th>Vai trò</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${rows.map(u => `
       <tr>
         <td class="muted">#${u.user_id}</td>
         <td class="word">
@@ -430,6 +451,11 @@ function renderRows() {
         </td>
         <td>${escape(u.email)}</td>
         <td><span class="badge ${u.role === 'ADMIN' ? 'admin' : 'user'}">${u.role === 'ADMIN' ? '👑 Quản trị viên' : '🎓 Người học'}</span></td>
+        <td><span class="badge ${u.is_locked ? 'neutral' : 'user'}">${u.is_locked ? 'Đã khóa' : 'Hoạt động'}</span></td>
+        <td><div class="row-actions">
+          <button class="icon-btn" data-user-detail="${u.user_id}">${icon('eye')} <span>Tiến độ</span></button>
+          ${u.role === 'USER' ? `<button class="icon-btn" data-user-lock="${u.user_id}">${u.is_locked ? 'Mở khóa' : 'Khóa'}</button><button class="icon-btn delete" data-user-delete="${u.user_id}">${icon('delete')} <span>Xóa</span></button>` : ''}
+        </div></td>
       </tr>`).join('')}</tbody></table></div>`;
   }
 
@@ -440,14 +466,62 @@ function renderRows() {
   app.querySelectorAll('[data-delete]').forEach(b => b.onclick = () => deleteTopic(Number(b.dataset.delete)));
   app.querySelectorAll('[data-detail]').forEach(b => b.onclick = () => details(Number(b.dataset.detail)));
   if (type === 'users') {
+    app.querySelectorAll('[data-user-detail]').forEach(b => b.onclick = () => userDetails(Number(b.dataset.userDetail), b));
+    app.querySelectorAll('[data-user-lock]').forEach(b => b.onclick = () => userLock(Number(b.dataset.userLock)));
+    app.querySelectorAll('[data-user-delete]').forEach(b => b.onclick = () => deleteUser(Number(b.dataset.userDelete)));
     document.querySelector('#prev-users').onclick = () => { state.userOffset = Math.max(0,state.userOffset-99); state.pagination = 1; load(); };
     document.querySelector('#next-users').onclick = () => { state.userOffset += 99; state.pagination = 1; load(); };
   }
 }
 
+function userLock(id) {
+  const user = state.data?.users.find(u => u.user_id === id);
+  if (!user || user.role !== 'USER') return;
+  const locked = !user.is_locked;
+  showDialog(`${locked ? 'Khóa' : 'Mở khóa'} tài khoản?`, `<div class="dialog-body"><p>${locked ? 'Khóa' : 'Mở khóa'} tài khoản <strong>${escape(user.username)}</strong>?</p><p>${locked ? 'Người học sẽ không thể đăng nhập hoặc tiếp tục sử dụng phiên hiện tại. Tiến độ học được giữ lại.' : 'Người học có thể đăng nhập lại. Các phiên trước khi khóa vẫn hết hiệu lực.'}</p><div id="form-error" role="alert"></div></div>`, '<button class="btn" data-close>Hủy</button><button class="btn primary" id="confirm-user-lock">Xác nhận</button>');
+  dialog.querySelector('#confirm-user-lock').onclick = () => mutate(() => api(`/admin/users/${id}/lock`, {method:'PATCH', body:{is_locked:locked}}), locked ? 'Đã khóa tài khoản.' : 'Đã mở khóa tài khoản.');
+}
+
+function deleteUser(id) {
+  const user = state.data?.users.find(u => u.user_id === id);
+  if (!user || user.role !== 'USER') return;
+  showDialog('Xóa tài khoản người học?', `<form id="delete-user-form" class="dialog-body"><p>Xóa vĩnh viễn <strong>${escape(user.username)}</strong> cùng bộ sưu tập, tiến độ, lịch học, quiz, game, thông báo và bản ghi ảnh của tài khoản. Không thể hoàn tác.</p>${field('Nhập đúng tên đăng nhập để xác nhận','username','','required autocomplete="off"')}<div id="form-error" role="alert"></div></form>`, '<button class="btn" data-close>Hủy</button><button class="btn danger" type="submit" form="delete-user-form">Xóa vĩnh viễn</button>');
+  dialog.querySelector('#delete-user-form').onsubmit = async event => {
+    event.preventDefault(); if (state.busy) return;
+    const username = new FormData(event.currentTarget).get('username');
+    if (username !== user.username) { dialog.querySelector('#form-error').textContent = 'Tên đăng nhập xác nhận chưa khớp.'; return; }
+    await mutate(() => api(`/admin/users/${id}`, {method:'DELETE', body:{username}}), 'Đã xóa tài khoản và dữ liệu học liên quan.');
+  };
+}
+
+const dateLabel = value => value ? new Date(value).toLocaleString('vi-VN', {timeZone:'Asia/Ho_Chi_Minh'}) : 'Chưa có';
+async function userDetails(id, button) {
+  const token = state.token, loadId = state.loadId;
+  const requestVersion = ++dialogVersion;
+  button.disabled = true;
+  try {
+    const user = await api(`/admin/users/${id}`);
+    if (token !== state.token || loadId !== state.loadId || requestVersion !== dialogVersion || state.page !== 'users') return;
+    const s = user.learning;
+    const detail = (label,value) => `<div class="detail-item"><small>${label}</small><div>${value}</div></div>`;
+    const statuses = {NEW:'Chưa học', LEARNING:'Đang học', MASTERED:'Đã nhớ'};
+    showDialog(`Tiến độ · ${user.username}`, `<div class="dialog-body user-progress">
+      ${detail('TÀI KHOẢN', `${escape(user.full_name || user.username)} · ${escape(user.email)}<br>${user.is_locked ? 'Đã khóa' : 'Hoạt động'} · ${escape(user.cefr_level || 'Chưa chọn trình độ')}<br>Tham gia: ${escape(dateLabel(user.created_at))}`)}
+      ${detail('MỤC TIÊU VÀ CHUỖI HỌC', `Hôm nay: ${num(s.today_count)} / ${num(s.daily_goal)} lượt<br>Streak hiện tại: ${num(s.current_streak)} ngày · Dài nhất: ${num(s.longest_streak)} ngày`)}
+      ${detail('TỪ VỰNG', `Đã lưu: ${num(s.saved_count)} · Đã nhớ: ${num(s.mastered_count)}<br>Từ đã lưu cần ôn: ${num(s.needs_review)} · Đến hạn: ${num(s.due_count)}<br>Tổng lượt luyện: ${num(s.review_count)}`)}
+      ${detail('QUIZ VÀ TRÒ CHƠI', `Quiz hoàn thành: ${num(s.quiz_runs)} · Đúng ${num(s.quiz_correct)} / ${num(s.quiz_total)} câu${s.quiz_total ? ` (${Math.round(100*s.quiz_correct/s.quiz_total)}%)` : ''}<br>Lượt chơi: ${num(user.game_runs)} · Tổng điểm: ${num(user.game_score)}`)}
+      <h3>Hoạt động 7 ngày gần nhất</h3><div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Lượt học</th></tr></thead><tbody>${s.days.map(d => `<tr><td>${escape(d.date)}</td><td>${num(d.count)}</td></tr>`).join('')}</tbody></table></div>
+      <h3>Tiến độ từng từ (${num(s.progress.length)})</h3>
+      ${s.progress.length ? `<div class="table-wrap"><table><thead><tr><th>Từ</th><th>Trạng thái</th><th>Đúng / Sai</th><th>Lần ôn gần nhất</th><th>Ôn tiếp theo</th></tr></thead><tbody>${s.progress.map(p => `<tr><td>${escape(user.vocabulary_names[p.vocabulary_id] || `#${p.vocabulary_id}`)}</td><td>${escape(statuses[p.status] || p.status)}</td><td>${num(p.correct_count)} / ${num(p.incorrect_count)}</td><td>${escape(dateLabel(p.last_reviewed_at))}</td><td>${escape(dateLabel(p.next_review_at))}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Người học chưa có lượt luyện tập nào.</p>'}
+    </div>`);
+  } catch (error) { if (state.token === token && state.loadId === loadId) toast(error.message); }
+  finally { button.disabled = false; }
+}
+
 function primary(items,key) { return [...items].sort((a,b) => a[key]-b[key])[0]; }
 
 function showDialog(title,body,footer = '<button class="btn" type="button" data-close>Đóng</button>') {
+  dialogVersion++;
   dialog.innerHTML = `<div class="dialog-head"><h2 id="dialog-title">${escape(title)}</h2><button class="icon-btn" type="button" data-close aria-label="Đóng hộp thoại">${icon('close')}</button></div>${body}<div class="dialog-foot">${footer}</div>`;
   dialog.querySelectorAll('[data-close]').forEach(b => b.onclick = () => { if (!state.busy) dialog.close(); });
   if (!dialog.open) dialog.showModal();
@@ -459,31 +533,112 @@ function field(label,name,value,attrs = '',full = false,textarea = false) {
   return `<label class="field ${full ? 'full' : ''}"><span class="field-title">${label}</span>${textarea ? `<textarea name="${name}" ${attrs}>${escape(value)}</textarea>` : `<input name="${name}" value="${escape(value)}" ${attrs}>`}</label>`;
 }
 
+function wordContentRow(kind, item = {}) {
+  const meaning = kind === 'meaning';
+  const id = meaning ? item.meaning_id : item.example_id;
+  const fields = meaning
+    ? field('Nghĩa tiếng Việt *','meaning_vi',item.meaning_vi,'required maxlength="2000"',false,true)
+      + field('Định nghĩa tiếng Anh','definition_en',item.definition_en,'maxlength="2000"',false,true)
+    : field('Câu ví dụ tiếng Anh','sentence_en',item.sentence_en,id ? 'required maxlength="2000"' : 'maxlength="2000"',false,true)
+      + field('Dịch câu ví dụ','sentence_vi',item.sentence_vi,'maxlength="2000"',false,true);
+  return `<div class="word-content-row" data-content-id="${escape(id)}">${fields}<button class="icon-btn delete" type="button" data-remove-content>${icon('delete')} Xóa ${meaning ? 'nghĩa' : 'ví dụ'}</button></div>`;
+}
+
+function wordContentSection(kind, items) {
+  const meaning = kind === 'meaning';
+  const noun = meaning ? 'nghĩa' : 'ví dụ';
+  return `<section class="word-content full" data-content-kind="${kind}"><h3>${meaning ? 'Nghĩa và định nghĩa' : 'Câu ví dụ'}</h3>
+    <div data-content-list>${items.map(item => wordContentRow(kind,item)).join('')}</div>
+    <button class="btn" type="button" data-add-content>${icon('plus')} Thêm ${noun}</button></section>`;
+}
+
+function bindWordContent(form) {
+  for (const section of form.querySelectorAll('[data-content-kind]')) {
+    const kind = section.dataset.contentKind;
+    const list = section.querySelector('[data-content-list]');
+    const add = section.querySelector('[data-add-content]');
+    const syncButtons = () => {
+      add.disabled = list.children.length >= 50;
+      list.querySelectorAll('[data-remove-content]').forEach(button => {
+        button.disabled = kind === 'meaning' && list.children.length === 1;
+      });
+    };
+    add.onclick = () => {
+      list.insertAdjacentHTML('beforeend',wordContentRow(kind));
+      syncButtons();
+      list.lastElementChild.querySelector('textarea').focus();
+    };
+    list.onclick = event => {
+      const button = event.target.closest('[data-remove-content]');
+      if (!button || button.disabled) return;
+      button.closest('.word-content-row').remove();
+      syncButtons();
+      add.focus();
+    };
+    syncButtons();
+  }
+}
+
+function wordContentPayload(form) {
+  const rows = kind => [...form.querySelectorAll(`[data-content-kind="${kind}"] .word-content-row`)];
+  const value = (row, name) => row.querySelector(`[name="${name}"]`).value.trim();
+  const meanings = rows('meaning').map(row => ({
+    meaning_id: row.dataset.contentId ? Number(row.dataset.contentId) : undefined,
+    meaning_vi: value(row,'meaning_vi'), definition_en: value(row,'definition_en'),
+  }));
+  const examples = rows('example').map(row => ({
+    example_id: row.dataset.contentId ? Number(row.dataset.contentId) : undefined,
+    sentence_en: value(row,'sentence_en'), sentence_vi: value(row,'sentence_vi'),
+  })).filter(item => item.example_id || item.sentence_en || item.sentence_vi);
+  if (!meanings.length || meanings.some(item => !item.meaning_vi)) throw new Error('Nhập nghĩa tiếng Việt cho từng mục.');
+  if (examples.some(item => !item.sentence_en)) throw new Error('Nhập câu ví dụ tiếng Anh hoặc xóa mục đang để trống.');
+  return {meanings,examples};
+}
+
 function editor(type,id) {
   const topic = type === 'topic';
   const item = id ? (topic ? state.data.topics.find(t => t.topic_id === id) : state.data.words.find(w => w.vocabulary_id === id)) : {};
   if (!item) return;
-  const meaning = topic ? {} : primary(item.meanings || [],'meaning_id'), example = topic ? {} : primary(item.examples || [],'example_id');
-  const fields = topic ? field('Tên chủ đề *','name',item.name || '','required maxlength="100"') + field('Biểu tượng *','symbol',item.symbol || '📚','required maxlength="20"') + field('Slug *','slug',item.slug || '','required maxlength="50" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="vi-du: everyday-life"',true) + '<p class="muted full">Slug dùng chữ thường không dấu, số và dấu gạch ngang.</p>' : field('Từ tiếng Anh *','word',item.word || '','required maxlength="100"') + field('Phiên âm IPA','ipa',item.ipa || '','maxlength="100" placeholder="/ˈæp.əl/"') + field('Nghĩa tiếng Việt *','meaning_vi',meaning?.meaning_vi || '','required maxlength="2000"',true,true) + field('Câu ví dụ tiếng Anh','sentence_en',example?.sentence_en || '',`maxlength="2000" ${example ? 'required' : ''}`,true,true) + field('Dịch câu ví dụ','sentence_vi',example?.sentence_vi || '','maxlength="2000"',true,true) + `<div class="field full"><span class="field-title">Chủ đề</span><div class="topic-checks">${state.data.topics.length ? state.data.topics.map(t => `<label><input type="checkbox" name="topic_ids" value="${t.topic_id}" ${item.topics?.some(x => x.topic_id === t.topic_id) ? 'checked' : ''}>${escape(t.symbol)} ${escape(t.name)}</label>`).join('') : '<span class="muted">Chưa có chủ đề. Bạn có thể bổ sung sau.</span>'}</div><small>Tối đa 50 chủ đề. Biểu mẫu sửa nghĩa và ví dụ đầu tiên, giữ nguyên các nội dung bổ sung.</small></div>`;
+  const fields = topic
+    ? field('Tên chủ đề *','name',item.name,'required maxlength="100"')
+      + field('Biểu tượng *','symbol',item.symbol || '📚','required maxlength="20"')
+      + field('Slug *','slug',item.slug,'required maxlength="50" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="vi-du: everyday-life"',true)
+      + '<p class="muted full">Slug dùng chữ thường không dấu, số và dấu gạch ngang.</p>'
+    : field('Từ tiếng Anh *','word',item.word,'required maxlength="100"')
+      + field('Phiên âm IPA','ipa',item.ipa,'maxlength="100" placeholder="/ˈæp.əl/"')
+      + wordContentSection('meaning',item.meanings?.length ? item.meanings : [{}])
+      + wordContentSection('example',item.examples?.length ? item.examples : [{}])
+      + `<div class="field full"><span class="field-title">Chủ đề</span><div class="topic-checks">${state.data.topics.length ? state.data.topics.map(t => `<label><input type="checkbox" name="topic_ids" value="${t.topic_id}" ${item.topics?.some(x => x.topic_id === t.topic_id) ? 'checked' : ''}>${escape(t.symbol)} ${escape(t.name)}</label>`).join('') : '<span class="muted">Chưa có chủ đề.</span>'}</div><small>Tối đa 50 chủ đề.</small></div>`;
 
   showDialog(`${id ? 'Chỉnh sửa' : 'Thêm'} ${topic ? 'chủ đề' : 'từ vựng'}`,`<form id="edit-form" class="dialog-body"><div class="form-grid">${fields}</div><div id="form-error" role="alert"></div></form>`,'<button class="btn" type="button" data-close>Hủy</button><button class="btn primary" type="submit" form="edit-form" id="save">Lưu thay đổi</button>');
   const form = dialog.querySelector('#edit-form');
+  if (!topic) bindWordContent(form);
   form.onsubmit = async event => {
     event.preventDefault(); if (state.busy) return;
-    const values = new FormData(form), payload = {};
-    for (const [key,value] of values) if (key !== 'topic_ids') payload[key] = value.trim();
-    if (!topic) payload.topic_ids = values.getAll('topic_ids').map(Number);
-    if (!topic && payload.topic_ids.length > 50) { dialog.querySelector('#form-error').innerHTML = '<div class="error">Chỉ được chọn tối đa 50 chủ đề.</div>'; return; }
+    const values = new FormData(form);
+    const fields = topic ? ['name','symbol','slug'] : ['word','ipa'];
+    const payload = Object.fromEntries(fields.map(key => [key,values.get(key).trim()]));
+    if (!topic) {
+      try {
+        payload.topic_ids = values.getAll('topic_ids').map(Number);
+        if (payload.topic_ids.length > 50) throw new Error('Chỉ được chọn tối đa 50 chủ đề.');
+        Object.assign(payload,wordContentPayload(form));
+      } catch (error) {
+        dialog.querySelector('#form-error').innerHTML = `<div class="error">${escape(error.message)}</div>`;
+        return;
+      }
+    }
     await mutate(() => api(`/admin/${topic ? 'topics' : 'vocabularies'}${id ? `/${id}` : ''}`,{ method: id ? 'PUT' : 'POST',body: payload }),'Đã lưu thay đổi.');
   };
 }
 
 async function mutate(action,success) {
-  state.busy = true; dialog.querySelectorAll('button').forEach(b => b.disabled = true);
+  const enabledButtons = dialog.querySelectorAll('button:not(:disabled)');
+  state.busy = true; enabledButtons.forEach(button => button.disabled = true);
   const errorTarget = dialog.querySelector('#form-error'); errorTarget.textContent = '';
   try { await action(); dialog.close(); toast(success); await load(); }
   catch (error) { if (dialog.open) errorTarget.innerHTML = `<div class="error">${escape(error.message)}</div>`; }
-  finally { state.busy = false; dialog.querySelectorAll('button').forEach(b => b.disabled = false); }
+  finally { state.busy = false; enabledButtons.forEach(button => button.disabled = false); }
 }
 
 function deleteTopic(id) {
